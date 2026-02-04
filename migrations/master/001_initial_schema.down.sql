@@ -1,0 +1,18 @@
+-- Drop tables in reverse order
+DROP TABLE IF EXISTS tenant_members CASCADE;
+DROP TABLE IF EXISTS role_permissions CASCADE;
+DROP TABLE IF EXISTS permissions CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS tenant_profiles CASCADE;
+DROP TABLE IF EXISTS tenants CASCADE;
+DROP TABLE IF EXISTS plan_features CASCADE;
+DROP TABLE IF EXISTS plans CASCADE;
+DROP TABLE IF EXISTS features CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Drop types
+DROP TYPE IF EXISTS tenant_status CASCADE;
+
+-- Drop extension
+DROP EXTENSION IF EXISTS "uuid-ossp";
