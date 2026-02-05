@@ -37,8 +37,8 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Inject user information into context
-		c.Set("user_id", claims.UserID.String())
+		// Inject user information into context (como UUID)
+		c.Set("user_id", claims.UserID)
 
 		c.Next()
 	}

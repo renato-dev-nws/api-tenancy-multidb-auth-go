@@ -92,6 +92,33 @@ func GenerateSlug() string {
 	return string(result)
 }
 
+// NormalizeSlug normaliza um texto para formato slug (lowercase, sem espaços)
+func NormalizeSlug(text string) string {
+	// Converter para minúsculas
+	slug := strings.ToLower(text)
+
+	// Remover espaços e caracteres especiais, substituir por hífen
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+
+	// Remover caracteres não alfanuméricos (exceto hífen)
+	var result strings.Builder
+	for _, r := range slug {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+
+	// Remover hífens duplicados e do início/fim
+	slug = result.String()
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	slug = strings.Trim(slug, "-")
+
+	return slug
+}
+
 // NormalizeEmail normaliza um email (lowercase e trim)
 func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))

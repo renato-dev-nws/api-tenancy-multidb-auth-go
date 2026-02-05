@@ -6,20 +6,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	"github.com/saas-multi-database-api/internal/services"
 )
 
 type TenantHandler struct {
-	tenantRepo *repository.TenantRepository
+	tenantService *services.TenantService
 }
 
-func NewTenantHandler(tenantRepo *repository.TenantRepository) *TenantHandler {
+func NewTenantHandler(tenantService *services.TenantService) *TenantHandler {
 	return &TenantHandler{
-		tenantRepo: tenantRepo,
+		tenantService: tenantService,
 	}
 }
 
-// GetConfig returns the tenant configuration for the frontend
+// GetConfig retorna a configuração do tenant para o frontend
 func (h *TenantHandler) GetConfig(c *gin.Context) {
 	// Get features and permissions from context (injected by middleware)
 	features := c.MustGet("features").([]string)
@@ -31,6 +31,64 @@ func (h *TenantHandler) GetConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// CreateTenant cria um novo tenant (apenas autenticado pode criar)
+func (h *TenantHandler) CreateTenant(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	var req services.CreateTenantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dados inválidos", "details": err.Error()})
+		return
+	}
+
+	// Usar o userID autenticado como owner
+	req.OwnerID = userID
+
+	tenant, err := h.tenantService.CreateTenant(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "tenant criado com sucesso, provisionamento em andamento",
+		"tenant":  tenant,
+	})
+}
+
+// GetTenant retorna os detalhes de um tenant específico
+func (h *TenantHandler) GetTenant(c *gin.Context) {
+	tenantIDStr := c.Param("tenant_id")
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do tenant inválido"})
+		return
+	}
+
+	tenant, err := h.tenantService.GetTenantByID(c.Request.Context(), tenantID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "tenant não encontrado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, tenant)
+}
+
+// ListMyTenants retorna todos os tenants do usuário autenticado
+func (h *TenantHandler) ListMyTenants(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	tenants, err := h.tenantService.ListUserTenants(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro ao listar tenants"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tenants": tenants,
+	})
 }
 
 // Helper function to parse UUID

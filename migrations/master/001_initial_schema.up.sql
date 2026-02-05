@@ -162,11 +162,14 @@ INSERT INTO permissions (name, slug, description) VALUES
     ('Manage Users', 'manage_users', 'Can manage tenant users'),
     ('Manage Settings', 'manage_settings', 'Can manage tenant settings');
 
--- Default global role (Admin)
+-- Default global roles
 INSERT INTO roles (tenant_id, name, slug) VALUES
-    (NULL, 'Global Admin', 'global_admin');
+    (NULL, 'Global Admin', 'global_admin'),
+    (NULL, 'Owner', 'owner'),
+    (NULL, 'Admin', 'admin'),
+    (NULL, 'Member', 'member');
 
--- Link all permissions to admin role
+-- Link all permissions to global admin role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'global_admin';

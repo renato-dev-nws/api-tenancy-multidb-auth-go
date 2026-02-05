@@ -10,7 +10,7 @@ import (
 )
 
 type Client struct {
-	client *redis.Client
+	Client *redis.Client // Expor publicamente para uso no TenantService
 }
 
 // NewClient creates a new Redis client
@@ -29,27 +29,27 @@ func NewClient(cfg *config.RedisConfig) (*Client, error) {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	return &Client{client: client}, nil
+	return &Client{Client: client}, nil
 }
 
 // Get retrieves a value from Redis
 func (c *Client) Get(ctx context.Context, key string) (string, error) {
-	return c.client.Get(ctx, key).Result()
+	return c.Client.Get(ctx, key).Result()
 }
 
 // Set sets a value in Redis with expiration
 func (c *Client) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	return c.client.Set(ctx, key, value, expiration).Err()
+	return c.Client.Set(ctx, key, value, expiration).Err()
 }
 
 // Delete removes a key from Redis
 func (c *Client) Delete(ctx context.Context, keys ...string) error {
-	return c.client.Del(ctx, keys...).Err()
+	return c.Client.Del(ctx, keys...).Err()
 }
 
 // Exists checks if a key exists in Redis
 func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
-	count, err := c.client.Exists(ctx, key).Result()
+	count, err := c.Client.Exists(ctx, key).Result()
 	return count > 0, err
 }
 
@@ -73,10 +73,10 @@ func (c *Client) InvalidateTenantCache(ctx context.Context, urlCode string) erro
 
 // Publish publishes a message to a Redis channel
 func (c *Client) Publish(ctx context.Context, channel string, message interface{}) error {
-	return c.client.Publish(ctx, channel, message).Err()
+	return c.Client.Publish(ctx, channel, message).Err()
 }
 
 // Close closes the Redis client
 func (c *Client) Close() error {
-	return c.client.Close()
+	return c.Client.Close()
 }

@@ -1,119 +1,123 @@
-.PHONY: help setup dev migrate-up migrate-down create-admin docker-up docker-down docker-rebuild logs test clean
+.PHONY: help setup reset start stop restart logs logs-api logs-worker migrate seed test-login test-tenant clean
 
 # Default target
 help:
-	@echo "Available commands:"
-	@echo "  make setup           - Setup development environment"
-	@echo "  make dev             - Run API locally (requires Docker services)"
-	@echo "  make migrate-up      - Run database migrations"
-	@echo "  make migrate-down    - Rollback database migrations"
-	@echo "  make create-admin    - Create admin user (admin@teste.com / admin123)"
-	@echo "  make docker-up       - Start all Docker services"
-	@echo "  make docker-down     - Stop all Docker services"
-	@echo "  make docker-rebuild  - Rebuild and restart Docker services"
-	@echo "  make logs            - View Docker logs"
-	@echo "  make test            - Run tests"
-	@echo "  make clean           - Clean build artifacts"
+	@echo "=== SaaS Multi-Tenant API - Makefile ==="
+	@echo ""
+	@echo "Quick Start:"
+	@echo "  make setup           - Complete initial setup (build + migrate + seed)"
+	@echo "  make reset           - Reset everything (down -v + setup)"
+	@echo "  make start           - Start all services"
+	@echo "  make stop            - Stop all services"
+	@echo "  make restart         - Restart all services"
+	@echo ""
+	@echo "Development:"
+	@echo "  make logs            - View all logs (tail -f)"
+	@echo "  make logs-api        - View API logs only"
+	@echo "  make logs-worker     - View Worker logs only"
+	@echo "  make migrate         - Apply Master DB migrations"
+	@echo "  make seed            - Create admin user (admin@teste.com / admin123)"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test-login      - Test login with admin user"
+	@echo "  make test-tenant     - Create test tenant (url_code: teste)"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  make clean           - Clean volumes and rebuild"
+	@echo ""
 
-# Setup development environment
+# Complete setup: build, start, migrate, seed
 setup:
-	@echo "Setting up development environment..."
-	@if not exist .env copy .env.example .env
-	@echo "Installing Go dependencies..."
-	go mod download
-	@echo "Setup complete! Edit .env file with your configuration."
+	@echo "==> Building services..."
+	@docker compose build
+	@echo ""
+	@echo "==> Starting services..."
+	@docker compose up -d
+	@echo ""
+	@echo "==> Waiting for database..."
+	@sleep 8
+	@echo ""
+	@echo "==> Applying migrations..."
+	@$(MAKE) migrate
+	@echo ""
+	@echo "==> Creating admin user..."
+	@$(MAKE) seed
+	@echo ""
+	@echo "===================================="
+	@echo "Setup complete!"
+	@echo "Admin: admin@teste.com / admin123"
+	@echo "API: http://localhost:8080"
+	@echo "===================================="
 
-# Run API locally (requires Docker services to be running)
-dev:
-	@echo "Running API locally..."
-	go run cmd/api/main.go
+# Reset everything (clean volumes + setup)
+reset:
+	@echo "==> Stopping and removing all containers and volumes..."
+	@docker compose down -v
+	@echo ""
+	@$(MAKE) setup
 
-# Run database migrations
-migrate-up:
-	@echo "Running Master DB migrations..."
-	@docker exec -i saas-postgres psql -U postgres -d master_db < migrations/master/001_initial_schema.up.sql
-	@echo "Master DB migrations completed!"
+# Start all services
+start:
+	@docker compose up -d
+	@echo "Services started!"
 
-# Create initial admin user
-create-admin:
-	@echo "Creating admin user..."
-	@docker exec -i saas-postgres psql -U postgres -d master_db -c "DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@teste.com');"
-	@docker exec -i saas-postgres psql -U postgres -d master_db -c "DELETE FROM users WHERE email = 'admin@teste.com';"
-	@docker exec -i saas-postgres psql -U postgres -d master_db -c "INSERT INTO users (email, password_hash) VALUES ('admin@teste.com', '\$$2a\$$10\$$6WhluUZf60pTuno7omRwC.E3GR/Z8ElHbLbcDiO0EsPub6c7UImWK');"
-	@docker exec -i saas-postgres psql -U postgres -d master_db -c "INSERT INTO user_profiles (user_id, full_name) SELECT id, 'Admin User' FROM users WHERE email = 'admin@teste.com';"
-	@echo "Admin user created! Email: admin@teste.com | Password: admin123"
+# Stop all services
+stop:
+	@docker compose down
+	@echo "Services stopped!"
 
-# Rollback database migrations
-migrate-down:
-	@echo "Rolling back Master DB migrations..."
-	@docker exec -i saas-postgres psql -U postgres -d master_db < migrations/master/001_initial_schema.down.sql
-	@echo "Master DB migrations rolled back!"
+# Restart all services
+restart:
+	@docker compose restart
+	@echo "Services restarted!"
 
-# Start all Docker services
-docker-up:
-	@echo "Starting Docker services..."
-	docker-compose up -d postgres redis pgbouncer
-	@echo "Waiting for services to be ready..."
-	@timeout /t 5 /nobreak > nul
-	@echo "Docker services started!"
-
-# Stop all Docker services
-docker-down:
-	@echo "Stopping Docker services..."
-	docker-compose down
-	@echo "Docker services stopped!"
-
-# Rebuild and restart Docker services
-docker-rebuild:
-	@echo "Rebuilding Docker services..."
-	docker-compose down
-	docker-compose build --no-cache
-	docker-compose up -d
-	@echo "Docker services rebuilt and started!"
-
-# View Docker logs
+# View all logs
 logs:
-	docker-compose logs -f
+	@docker compose logs -f
 
 # View API logs only
 logs-api:
-	docker-compose logs -f api
+	@docker compose logs -f api
 
-# View Postgres logs only
-logs-db:
-	docker-compose logs -f postgres
+# View Worker logs only
+logs-worker:
+	@docker compose logs -f worker
 
-# Run tests
-test:
-	@echo "Running tests..."
-	go test -v ./...
+# Apply Master DB migrations
+migrate:
+	@docker exec -i saas-postgres psql -U postgres -d master_db < migrations/master/001_initial_schema.up.sql
 
-# Clean build artifacts
+# Create admin user (idempotent)
+seed:
+	@docker exec saas-postgres psql -U postgres -d master_db -c "DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@teste.com');" > /dev/null 2>&1 || true
+	@docker exec saas-postgres psql -U postgres -d master_db -c "DELETE FROM users WHERE email = 'admin@teste.com');" > /dev/null 2>&1 || true
+	@docker exec saas-postgres psql -U postgres -d master_db -c "INSERT INTO users (email, password_hash) VALUES ('admin@teste.com', '\$$2a\$$10\$$AlfQHB81zVpyRCL8x4NTeurxmM9skCihPZiACtivFcKV2hAiRy8M.');" > /dev/null
+	@docker exec saas-postgres psql -U postgres -d master_db -c "INSERT INTO user_profiles (user_id, full_name) SELECT id, 'Admin User' FROM users WHERE email = 'admin@teste.com';" > /dev/null
+	@echo "Admin user ready: admin@teste.com / admin123"
+
+# Test login
+test-login:
+	@curl -X POST http://localhost:8080/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}'
+	@echo ""
+
+# Create test tenant
+test-tenant:
+	@echo "Creating test tenant..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	PLAN_ID=$$(docker exec saas-postgres psql -U postgres -d master_db -t -c "SELECT id FROM plans LIMIT 1" | tr -d ' \n'); \
+	curl -X POST http://localhost:8080/api/v1/tenants \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d "{\"name\":\"Empresa Teste\",\"url_code\":\"teste\",\"plan_id\":\"$$PLAN_ID\",\"company_name\":\"Empresa Teste Ltda\",\"industry\":\"Tecnologia\"}"
+	@echo ""
+	@echo "Check worker logs: wsl make logs-worker"
+
+# Clean everything
 clean:
-	@echo "Cleaning build artifacts..."
-	@if exist bin rmdir /s /q bin
-	@echo "Clean complete!"
-
-# Build the application
-build:
-	@echo "Building application..."
-	@if not exist bin mkdir bin
-	go build -o bin/api.exe cmd/api/main.go
-	@echo "Build complete! Binary at bin/api.exe"
-
-# Run full development stack
-full-dev: docker-up migrate-up dev
-
-# Reset database (WARNING: This will delete all data!)
-reset-db:
-	@echo "WARNING: This will delete all data!"
-	@set /p confirm="Are you sure? (yes/no): "
-	@if "$(confirm)"=="yes" (
-		$(MAKE) docker-down
-		docker volume rm saas-multi-database-api_postgres_data || echo Volume already removed
-		$(MAKE) docker-up
-		$(MAKE) migrate-up
-		@echo "Database reset complete!"
-	) else (
-		@echo "Database reset cancelled."
-	)
+	@docker compose down -v
+	@docker system prune -f
+	@echo "All cleaned!"

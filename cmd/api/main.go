@@ -17,6 +17,7 @@ import (
 	"github.com/saas-multi-database-api/internal/handlers"
 	"github.com/saas-multi-database-api/internal/middleware"
 	"github.com/saas-multi-database-api/internal/repository"
+	"github.com/saas-multi-database-api/internal/services"
 )
 
 func main() {
@@ -51,9 +52,12 @@ func main() {
 	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
 	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
 
+	// Initialize services
+	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg)
-	tenantHandler := handlers.NewTenantHandler(tenantRepo)
+	tenantHandler := handlers.NewTenantHandler(tenantService)
 
 	// Setup router
 	router := setupRouter(cfg, dbManager, redisClient, authHandler, tenantHandler, tenantRepo)
@@ -121,6 +125,11 @@ func setupRouter(
 	protected.Use(middleware.AuthMiddleware(cfg))
 	{
 		protected.GET("/auth/me", authHandler.GetMe)
+
+		// Gestão de Tenants
+		protected.POST("/tenants", tenantHandler.CreateTenant)
+		protected.GET("/tenants", tenantHandler.ListMyTenants)
+		protected.GET("/tenants/:tenant_id", tenantHandler.GetTenant)
 	}
 
 	// Tenant-scoped routes (authentication + tenant resolution required)
