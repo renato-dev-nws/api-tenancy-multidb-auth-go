@@ -115,7 +115,7 @@ func (r *UserRepository) GetUserProfile(ctx context.Context, userID uuid.UUID) (
 	profile := &models.UserProfile{}
 
 	query := `
-		SELECT user_id, full_name, avatar_url, created_at, updated_at
+		SELECT user_id, full_name, COALESCE(avatar_url, '') as avatar_url, created_at, updated_at
 		FROM user_profiles
 		WHERE user_id = $1
 	`

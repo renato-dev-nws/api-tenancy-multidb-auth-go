@@ -33,6 +33,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Normalize email
+	req.Email = utils.NormalizeEmail(req.Email)
+
 	// Hash password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
@@ -73,7 +76,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
-	response.Tenants = []models.UserTenant{} // New users have no tenants yet
+	response.Tenants = []models.UserTenant{} // Novo usuário não tem tenant ainda
 
 	c.JSON(http.StatusCreated, response)
 }
@@ -86,6 +89,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Normalize email
+	req.Email = utils.NormalizeEmail(req.Email)
 
 	// Get user by email
 	user, err := h.userRepo.GetUserByEmail(c.Request.Context(), req.Email)

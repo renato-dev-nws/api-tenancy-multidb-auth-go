@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -135,8 +136,9 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 		SELECT DISTINCT 
 			t.id,
 			t.url_code,
-			COAST(tp.custom_settings->>'name' AS TEXT) as name,
-			r.slug as role
+			COALESCE(tp.custom_settings->>'name', '') as name,
+			r.slug as role,
+			t.created_at
 		FROM tenants t
 		JOIN tenant_members tm ON t.id = tm.tenant_id
 		LEFT JOIN tenant_profiles tp ON t.id = tp.tenant_id
@@ -155,7 +157,8 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 	for rows.Next() {
 		var tenant models.UserTenant
 		var name, role *string
-		if err := rows.Scan(&tenant.ID, &tenant.URLCode, &name, &role); err != nil {
+		var createdAt time.Time // Dummy variable to ignore in scan
+		if err := rows.Scan(&tenant.ID, &tenant.URLCode, &name, &role, &createdAt); err != nil {
 			return nil, fmt.Errorf("failed to scan tenant: %w", err)
 		}
 		if name != nil {
@@ -169,6 +172,11 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating tenants: %w", err)
+	}
+
+	// Return empty slice if no tenants found
+	if tenants == nil {
+		return []models.UserTenant{}, nil
 	}
 
 	return tenants, nil

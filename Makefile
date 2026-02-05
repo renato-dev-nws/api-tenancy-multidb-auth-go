@@ -1,4 +1,4 @@
-.PHONY: help setup dev migrate-up migrate-down docker-up docker-down docker-rebuild logs test clean
+.PHONY: help setup dev migrate-up migrate-down create-admin docker-up docker-down docker-rebuild logs test clean
 
 # Default target
 help:
@@ -7,6 +7,7 @@ help:
 	@echo "  make dev             - Run API locally (requires Docker services)"
 	@echo "  make migrate-up      - Run database migrations"
 	@echo "  make migrate-down    - Rollback database migrations"
+	@echo "  make create-admin    - Create admin user (admin@teste.com / admin123)"
 	@echo "  make docker-up       - Start all Docker services"
 	@echo "  make docker-down     - Stop all Docker services"
 	@echo "  make docker-rebuild  - Rebuild and restart Docker services"
@@ -32,6 +33,15 @@ migrate-up:
 	@echo "Running Master DB migrations..."
 	@docker exec -i saas-postgres psql -U postgres -d master_db < migrations/master/001_initial_schema.up.sql
 	@echo "Master DB migrations completed!"
+
+# Create initial admin user
+create-admin:
+	@echo "Creating admin user..."
+	@docker exec -i saas-postgres psql -U postgres -d master_db -c "DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@teste.com');"
+	@docker exec -i saas-postgres psql -U postgres -d master_db -c "DELETE FROM users WHERE email = 'admin@teste.com';"
+	@docker exec -i saas-postgres psql -U postgres -d master_db -c "INSERT INTO users (email, password_hash) VALUES ('admin@teste.com', '\$$2a\$$10\$$6WhluUZf60pTuno7omRwC.E3GR/Z8ElHbLbcDiO0EsPub6c7UImWK');"
+	@docker exec -i saas-postgres psql -U postgres -d master_db -c "INSERT INTO user_profiles (user_id, full_name) SELECT id, 'Admin User' FROM users WHERE email = 'admin@teste.com';"
+	@echo "Admin user created! Email: admin@teste.com | Password: admin123"
 
 # Rollback database migrations
 migrate-down:
