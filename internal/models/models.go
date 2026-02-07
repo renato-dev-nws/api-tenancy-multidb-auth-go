@@ -130,6 +130,38 @@ type AdminLoginResponse struct {
 	Permissions []string `json:"permissions"`
 }
 
+// CRUD SysUsers (Admin API)
+type CreateSysUserRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+	FullName string `json:"full_name" binding:"required"`
+	RoleIDs  []int  `json:"role_ids,omitempty"`
+}
+
+type UpdateSysUserRequest struct {
+	Email     string  `json:"email" binding:"required,email"`
+	FullName  string  `json:"full_name" binding:"required"`
+	AvatarURL *string `json:"avatar_url"`
+	Status    string  `json:"status" binding:"required,oneof=active suspended inactive"`
+	RoleIDs   []int   `json:"role_ids,omitempty"`
+}
+
+type SysUserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	FullName  string    `json:"full_name"`
+	AvatarURL *string   `json:"avatar_url"`
+	Status    string    `json:"status"`
+	Roles     []string  `json:"roles"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type SysUserListResponse struct {
+	Users []SysUserResponse `json:"users"`
+	Total int               `json:"total"`
+}
+
 // Tenant API (Data Plane) - Tenant users
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`

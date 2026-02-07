@@ -67,9 +67,10 @@ func main() {
 	tenantHandler := handlers.NewTenantHandler(tenantService)
 	planHandler := handlers.NewPlanHandler(planRepo)
 	featureHandler := handlers.NewFeatureHandler(featureRepo)
+	sysUserHandler := handlers.NewSysUserHandler(sysUserRepo)
 
 	// Setup router
-	router := setupAdminRouter(cfg, authHandler, tenantHandler, planHandler, featureHandler)
+	router := setupAdminRouter(cfg, authHandler, tenantHandler, planHandler, featureHandler, sysUserHandler)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -114,6 +115,7 @@ func setupAdminRouter(
 	tenantHandler *handlers.TenantHandler,
 	planHandler *handlers.PlanHandler,
 	featureHandler *handlers.FeatureHandler,
+	sysUserHandler *handlers.SysUserHandler,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -155,6 +157,13 @@ func setupAdminRouter(
 		protected.POST("/features", featureHandler.CreateFeature)
 		protected.PUT("/features/:id", featureHandler.UpdateFeature)
 		protected.DELETE("/features/:id", featureHandler.DeleteFeature)
+
+		// SysUser Management
+		protected.GET("/sys-users", sysUserHandler.GetAllSysUsers)
+		protected.GET("/sys-users/:id", sysUserHandler.GetSysUserByID)
+		protected.POST("/sys-users", sysUserHandler.CreateSysUser)
+		protected.PUT("/sys-users/:id", sysUserHandler.UpdateSysUser)
+		protected.DELETE("/sys-users/:id", sysUserHandler.DeleteSysUser)
 
 		// Feature Management (future)
 		// protected.POST("/features", featureHandler.CreateFeature)

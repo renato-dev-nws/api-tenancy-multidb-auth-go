@@ -179,6 +179,27 @@ test-features-create:
 		-d '{"title":"Users","slug":"users","code":"user","description":"User management module","is_active":true}'
 	@echo ""
 
+# Test Admin API - SysUsers CRUD
+test-sysusers-list:
+	@echo "Listing all sys users..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET http://localhost:8080/api/v1/admin/sys-users \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-sysusers-create:
+	@echo "Creating new sys user..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8080/api/v1/admin/sys-users \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"email":"manager@teste.com","password":"manager123","full_name":"Manager User"}'
+	@echo ""
+
 # Clean everything
 clean:
 	@docker compose down -v
