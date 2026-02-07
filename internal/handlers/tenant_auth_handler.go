@@ -10,42 +10,23 @@ import (
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
-type AuthHandler struct {
+// TenantAuthHandler handles authentication for tenant users (Data Plane)
+type TenantAuthHandler struct {
 	userRepo   *repository.UserRepository
 	tenantRepo *repository.TenantRepository
 	cfg        *config.Config
-	apiType    string // "admin" or "tenant"
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{
+func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *TenantAuthHandler {
+	return &TenantAuthHandler{
 		userRepo:   userRepo,
 		tenantRepo: tenantRepo,
 		cfg:        cfg,
-		apiType:    "tenant", // default for backward compatibility
 	}
 }
 
-func NewAdminAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{
-		userRepo:   userRepo,
-		tenantRepo: tenantRepo,
-		cfg:        cfg,
-		apiType:    "admin",
-	}
-}
-
-func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{
-		userRepo:   userRepo,
-		tenantRepo: tenantRepo,
-		cfg:        cfg,
-		apiType:    "tenant",
-	}
-}
-
-// Register handles user registration
-func (h *AuthHandler) Register(c *gin.Context) {
+// Register creates a new tenant user
+func (h *TenantAuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -76,13 +57,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Generate token based on API type
-	var token string
-	if h.apiType == "admin" {
-		token, err = utils.GenerateAdminJWT(user.ID, h.cfg)
-	} else {
-		token, err = utils.GenerateTenantJWT(user.ID, h.cfg)
-	}
+	// Generate Tenant JWT
+	token, err := utils.GenerateTenantJWT(user.ID, h.cfg)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
@@ -95,19 +71,20 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response := models.LoginResponse{
+	response := models.TenantLoginResponse{
 		Token: token,
 	}
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
-	response.Tenants = []models.UserTenant{} // Novo usuário não tem tenant ainda
+	response.Tenants = []models.UserTenant{} // New user has no tenants yet
+	response.LastTenantLogged = ""           // No tenant logged yet
 
 	c.JSON(http.StatusCreated, response)
 }
 
-// Login handles user authentication
-func (h *AuthHandler) Login(c *gin.Context) {
+// Login authenticates a tenant user and updates last_tenant_logged
+func (h *TenantAuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -131,13 +108,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate token based on API type
-	var token string
-	if h.apiType == "admin" {
-		token, err = utils.GenerateAdminJWT(user.ID, h.cfg)
-	} else {
-		token, err = utils.GenerateTenantJWT(user.ID, h.cfg)
-	}
+	// Generate Tenant JWT
+	token, err := utils.GenerateTenantJWT(user.ID, h.cfg)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
@@ -160,19 +132,63 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		tenants = []models.UserTenant{}
 	}
 
-	response := models.LoginResponse{
+	// Build response
+	response := models.TenantLoginResponse{
 		Token: token,
 	}
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
 	response.Tenants = tenants
+	response.LastTenantLogged = user.LastTenantLogged
 
 	c.JSON(http.StatusOK, response)
 }
 
-// GetMe returns the authenticated user's information
-func (h *AuthHandler) GetMe(c *gin.Context) {
+// LoginToTenant authenticates user and updates last_tenant_logged field
+// This endpoint is called when user selects a tenant from the list
+func (h *TenantAuthHandler) LoginToTenant(c *gin.Context) {
+	urlCode := c.Param("url_code")
+
+	// Validate that user is authenticated
+	userID := c.MustGet("user_id").(string)
+	parsedUserID := mustParseUUID(userID)
+
+	// Verify user has access to this tenant
+	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), parsedUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user tenants"})
+		return
+	}
+
+	// Check if url_code exists in user's tenants
+	hasAccess := false
+	for _, t := range tenants {
+		if t.URLCode == urlCode {
+			hasAccess = true
+			break
+		}
+	}
+
+	if !hasAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied to this tenant"})
+		return
+	}
+
+	// Update last_tenant_logged
+	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), parsedUserID, urlCode); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update last tenant logged"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":            "last tenant logged updated",
+		"last_tenant_logged": urlCode,
+	})
+}
+
+// GetMe returns the authenticated tenant user's information
+func (h *TenantAuthHandler) GetMe(c *gin.Context) {
 	userID := c.MustGet("user_id").(string)
 
 	user, err := h.userRepo.GetUserByID(c.Request.Context(), mustParseUUID(userID))
@@ -187,9 +203,17 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 		return
 	}
 
+	// Get user tenants
+	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), user.ID)
+	if err != nil {
+		tenants = []models.UserTenant{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"id":        user.ID,
-		"email":     user.Email,
-		"full_name": profile.FullName,
+		"id":                 user.ID,
+		"email":              user.Email,
+		"full_name":          profile.FullName,
+		"last_tenant_logged": user.LastTenantLogged,
+		"tenants":            tenants,
 	})
 }

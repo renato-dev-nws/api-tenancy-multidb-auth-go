@@ -53,14 +53,15 @@ func main() {
 	}
 
 	// Initialize repositories
+	sysUserRepo := repository.NewSysUserRepository(dbManager.GetMasterPool())
 	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
 	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
 
 	// Initialize services
 	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
 
-	// Initialize handlers
-	authHandler := handlers.NewAdminAuthHandler(userRepo, tenantRepo, cfg)
+	// Initialize handlers (Admin API uses SysUserRepository)
+	authHandler := handlers.NewAdminAuthHandler(sysUserRepo, cfg)
 	tenantHandler := handlers.NewTenantHandler(tenantService)
 
 	// Setup router
@@ -105,7 +106,7 @@ func main() {
 
 func setupAdminRouter(
 	cfg *config.Config,
-	authHandler *handlers.AuthHandler,
+	authHandler *handlers.AdminAuthHandler,
 	tenantHandler *handlers.TenantHandler,
 ) *gin.Engine {
 	router := gin.Default()

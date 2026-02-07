@@ -7,12 +7,12 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID  `json:"id"`
-	Email        string     `json:"email"`
-	PasswordHash string     `json:"-"`
-	LastTenantID *uuid.UUID `json:"last_tenant_id,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID               uuid.UUID `json:"id"`
+	Email            string    `json:"email"`
+	PasswordHash     string    `json:"-"`
+	LastTenantLogged string    `json:"last_tenant_logged,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type UserProfile struct {
@@ -96,6 +96,25 @@ type Permission struct {
 
 // DTOs for API requests/responses
 
+// Admin API (Control Plane) - SaaS administrators
+type AdminRegisterRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+	FullName string `json:"full_name" binding:"required"`
+}
+
+type AdminLoginResponse struct {
+	Token   string `json:"token"`
+	SysUser struct {
+		ID       uuid.UUID `json:"id"`
+		Email    string    `json:"email"`
+		FullName string    `json:"full_name"`
+	} `json:"sys_user"`
+	Roles       []string `json:"roles"`
+	Permissions []string `json:"permissions"`
+}
+
+// Tenant API (Data Plane) - Tenant users
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
@@ -107,14 +126,15 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type LoginResponse struct {
+type TenantLoginResponse struct {
 	Token string `json:"token"`
 	User  struct {
 		ID       uuid.UUID `json:"id"`
 		Email    string    `json:"email"`
 		FullName string    `json:"full_name"`
 	} `json:"user"`
-	Tenants []UserTenant `json:"tenants"`
+	Tenants          []UserTenant `json:"tenants"`
+	LastTenantLogged string       `json:"last_tenant_logged,omitempty"`
 }
 
 type UserTenant struct {

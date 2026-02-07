@@ -98,7 +98,7 @@ func setupTenantRouter(
 	cfg *config.Config,
 	dbManager *database.Manager,
 	redisClient *cache.Client,
-	authHandler *handlers.AuthHandler,
+	authHandler *handlers.TenantAuthHandler,
 	tenantHandler *handlers.TenantHandler,
 	tenantRepo *repository.TenantRepository,
 ) *gin.Engine {
@@ -129,6 +129,9 @@ func setupTenantRouter(
 	tenant.Use(middleware.TenantAuthMiddleware(cfg))
 	tenant.Use(middleware.TenantMiddleware(dbManager, redisClient, tenantRepo))
 	{
+		// Auth endpoint to update last_tenant_logged
+		tenant.POST("/auth/login-to-tenant", authHandler.LoginToTenant)
+
 		// Tenant configuration endpoint for frontend
 		tenant.GET("/config", tenantHandler.GetConfig)
 

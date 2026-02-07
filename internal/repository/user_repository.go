@@ -24,14 +24,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash str
 	query := `
 		INSERT INTO users (email, password_hash)
 		VALUES ($1, $2)
-		RETURNING id, email, password_hash, last_tenant_id, created_at, updated_at
+		RETURNING id, email, password_hash, last_tenant_logged, created_at, updated_at
 	`
 
 	err := r.pool.QueryRow(ctx, query, email, passwordHash).Scan(
 		&user.ID,
 		&user.Email,
 		&user.PasswordHash,
-		&user.LastTenantID,
+		&user.LastTenantLogged,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -63,7 +63,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	user := &models.User{}
 
 	query := `
-		SELECT id, email, password_hash, last_tenant_id, created_at, updated_at
+		SELECT id, email, password_hash, last_tenant_logged, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -72,7 +72,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 		&user.ID,
 		&user.Email,
 		&user.PasswordHash,
-		&user.LastTenantID,
+		&user.LastTenantLogged,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -89,7 +89,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*mo
 	user := &models.User{}
 
 	query := `
-		SELECT id, email, password_hash, last_tenant_id, created_at, updated_at
+		SELECT id, email, password_hash, last_tenant_logged, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -98,7 +98,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*mo
 		&user.ID,
 		&user.Email,
 		&user.PasswordHash,
-		&user.LastTenantID,
+		&user.LastTenantLogged,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -133,4 +133,20 @@ func (r *UserRepository) GetUserProfile(ctx context.Context, userID uuid.UUID) (
 	}
 
 	return profile, nil
+}
+
+// UpdateLastTenantLogged updates the last_tenant_logged field for a user
+func (r *UserRepository) UpdateLastTenantLogged(ctx context.Context, userID uuid.UUID, urlCode string) error {
+	query := `
+		UPDATE users
+		SET last_tenant_logged = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+
+	_, err := r.pool.Exec(ctx, query, urlCode, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update last_tenant_logged: %w", err)
+	}
+
+	return nil
 }

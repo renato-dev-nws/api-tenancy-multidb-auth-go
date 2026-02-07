@@ -11,6 +11,13 @@ DROP TABLE IF EXISTS features CASCADE;
 DROP TABLE IF EXISTS user_profiles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
+-- Drop system tables
+DROP TABLE IF EXISTS sys_role_permissions CASCADE;
+DROP TABLE IF EXISTS sys_user_roles CASCADE;
+DROP TABLE IF EXISTS sys_permissions CASCADE;
+DROP TABLE IF EXISTS sys_roles CASCADE;
+DROP TABLE IF EXISTS sys_users CASCADE;
+
 -- Drop types
 DROP TYPE IF EXISTS tenant_status CASCADE;
 

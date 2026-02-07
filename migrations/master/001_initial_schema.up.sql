@@ -3,12 +3,68 @@
 -- Create UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table
+-- ====================================
+-- SECTION 1: SaaS Administrator Tables (Control Plane users)
+-- ====================================
+
+-- System users table (SaaS administrators)
+CREATE TABLE sys_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'inactive')),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- System roles table
+CREATE TABLE sys_roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- System permissions table
+CREATE TABLE sys_permissions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- System user roles junction table
+CREATE TABLE sys_user_roles (
+    sys_user_id UUID REFERENCES sys_users(id) ON DELETE CASCADE,
+    sys_role_id INTEGER REFERENCES sys_roles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (sys_user_id, sys_role_id)
+);
+
+-- System role permissions junction table
+CREATE TABLE sys_role_permissions (
+    sys_role_id INTEGER REFERENCES sys_roles(id) ON DELETE CASCADE,
+    sys_permission_id INTEGER REFERENCES sys_permissions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (sys_role_id, sys_permission_id)
+);
+
+-- ====================================
+-- SECTION 2: Tenant Users Tables (Data Plane users)
+-- ====================================
+
+-- Tenant users table (users that belong to tenants)
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    last_tenant_id UUID,
+    last_tenant_logged VARCHAR(11),
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -113,7 +169,10 @@ CREATE TABLE tenant_members (
 );
 
 -- Create indexes
+CREATE INDEX idx_sys_users_email ON sys_users(email);
+CREATE INDEX idx_sys_users_status ON sys_users(status);
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_last_tenant_logged ON users(last_tenant_logged);
 CREATE INDEX idx_tenants_url_code ON tenants(url_code);
 CREATE INDEX idx_tenants_db_code ON tenants(db_code);
 CREATE INDEX idx_tenants_status ON tenants(status);
@@ -121,7 +180,59 @@ CREATE INDEX idx_tenant_members_user_id ON tenant_members(user_id);
 CREATE INDEX idx_tenant_members_tenant_id ON tenant_members(tenant_id);
 CREATE INDEX idx_roles_tenant_id ON roles(tenant_id);
 
--- Insert default data
+-- ====================================
+-- SECTION 3: Seed Data
+-- ====================================
+
+-- System roles (for SaaS administrators)
+INSERT INTO sys_roles (name, slug, description) VALUES
+    ('Super Admin', 'super_admin', 'Full system access with all permissions'),
+    ('Admin', 'admin', 'Administrative access to most features'),
+    ('Support', 'support', 'Customer support access with limited permissions'),
+    ('Viewer', 'viewer', 'Read-only access to system data');
+
+-- System permissions (for SaaS administrators)
+INSERT INTO sys_permissions (name, slug, description) VALUES
+    ('Create Tenant', 'create_tenant', 'Can create new tenants'),
+    ('View Tenants', 'view_tenants', 'Can view tenant list and details'),
+    ('Update Tenant', 'update_tenant', 'Can update tenant information'),
+    ('Delete Tenant', 'delete_tenant', 'Can delete tenants'),
+    ('Manage Plans', 'manage_plans', 'Can manage subscription plans'),
+    ('Manage System Users', 'manage_sys_users', 'Can manage SaaS administrator users'),
+    ('View Analytics', 'view_analytics', 'Can view system analytics'),
+    ('Manage Billing', 'manage_billing', 'Can manage billing and payments'),
+    ('Access Support Tools', 'access_support_tools', 'Can access customer support tools'),
+    ('View Audit Logs', 'view_audit_logs', 'Can view system audit logs');
+
+-- Assign permissions to system roles
+-- Super Admin: all permissions
+INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
+SELECT 1, id FROM sys_permissions;
+
+-- Admin: all except delete_tenant and manage_billing
+INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
+SELECT 2, id FROM sys_permissions
+WHERE slug NOT IN ('delete_tenant', 'manage_billing');
+
+-- Support: view and support tools only
+INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
+SELECT 3, id FROM sys_permissions
+WHERE slug IN ('view_tenants', 'view_analytics', 'access_support_tools', 'view_audit_logs');
+
+-- Viewer: read-only access
+INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
+SELECT 4, id FROM sys_permissions
+WHERE slug IN ('view_tenants', 'view_analytics');
+
+-- Default SaaS administrator (initial super admin)
+-- Password: admin123 (bcrypt hash with cost 12)
+INSERT INTO sys_users (email, password_hash, full_name, status) VALUES
+    ('admin@teste.com', '$2a$12$6qRbnes1LBvu5vXM9UGYHuifduRsnykrK.E/T.o/B0E3.n8OAuOhy', 'System Administrator', 'active');
+
+-- Assign super_admin role to the default admin
+INSERT INTO sys_user_roles (sys_user_id, sys_role_id)
+SELECT id, 1 FROM sys_users WHERE email = 'admin@teste.com';
+
 -- Default features
 INSERT INTO features (title, slug, description) VALUES
     ('Products', 'products', 'Product management module'),
