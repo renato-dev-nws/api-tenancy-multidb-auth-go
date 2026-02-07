@@ -136,6 +136,28 @@ test-subscription:
 		-d '{"plan_id":"33333333-3333-3333-3333-333333333333","billing_cycle":"monthly","name":"João Silva","is_company":false,"subdomain":"joao","email":"joao@teste.com","password":"senha12345"}'
 	@echo ""
 
+# Test Admin API - Plans CRUD
+test-plans-list:
+	@echo "Listing all plans..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET http://localhost:8080/api/v1/admin/plans \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-plans-create:
+	@echo "Creating new plan..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8080/api/v1/admin/plans \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Enterprise Plan","description":"Full access plan","price":99.99,"feature_ids":["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]}'
+	@echo ""
+
 # Clean everything
 clean:
 	@docker compose down -v

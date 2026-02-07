@@ -183,3 +183,38 @@ type SubscriptionResponse struct {
 	User   User   `json:"user"`
 	Tenant Tenant `json:"tenant"`
 }
+
+// ===== Admin API - Plans Management =====
+
+// CreatePlanRequest representa os dados para criar um plano
+type CreatePlanRequest struct {
+	Name        string   `json:"name" binding:"required"`
+	Description string   `json:"description"`
+	Price       float64  `json:"price" binding:"required,min=0"`
+	FeatureIDs  []string `json:"feature_ids"` // UUIDs das features
+}
+
+// UpdatePlanRequest representa os dados para atualizar um plano
+type UpdatePlanRequest struct {
+	Name        string   `json:"name" binding:"required"`
+	Description string   `json:"description"`
+	Price       float64  `json:"price" binding:"required,min=0"`
+	FeatureIDs  []string `json:"feature_ids"` // UUIDs das features
+}
+
+// PlanResponse retorna um plano com suas features
+type PlanResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Price       float64   `json:"price"`
+	Features    []Feature `json:"features"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// PlanListResponse retorna lista de planos
+type PlanListResponse struct {
+	Plans []PlanResponse `json:"plans"`
+	Total int            `json:"total"`
+}
