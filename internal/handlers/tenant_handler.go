@@ -35,7 +35,9 @@ func (h *TenantHandler) GetConfig(c *gin.Context) {
 
 // CreateTenant cria um novo tenant (apenas autenticado pode criar)
 func (h *TenantHandler) CreateTenant(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	// Para Admin API: não precisa de owner (será nil)
+	// Para Tenant API: poderia usar o user_id autenticado como owner
+	// Por enquanto, aceita owner_id opcional no body ou deixa nil
 
 	var req services.CreateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,8 +45,8 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 		return
 	}
 
-	// Usar o userID autenticado como owner
-	req.OwnerID = userID
+	// Se não houver owner_id no body, deixa como nil (para Admin API)
+	// Se precisar injetar owner do JWT no futuro, adicionar lógica aqui
 
 	tenant, err := h.tenantService.CreateTenant(c.Request.Context(), req)
 	if err != nil {

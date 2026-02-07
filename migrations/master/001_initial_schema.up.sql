@@ -108,13 +108,15 @@ CREATE TABLE plan_features (
 
 -- Tenants table
 CREATE TYPE tenant_status AS ENUM ('provisioning', 'active', 'suspended');
+CREATE TYPE billing_cycle AS ENUM ('monthly', 'quarterly', 'semiannual', 'annual');
 
 CREATE TABLE tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     db_code UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     url_code VARCHAR(11) UNIQUE NOT NULL,
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Nullable: admin pode criar tenant sem owner
     plan_id UUID NOT NULL REFERENCES plans(id),
+    billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',
     status tenant_status NOT NULL DEFAULT 'provisioning',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -123,6 +125,9 @@ CREATE TABLE tenants (
 -- Tenant profiles
 CREATE TABLE tenant_profiles (
     tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    company_name VARCHAR(255),
+    is_company BOOLEAN NOT NULL DEFAULT false,
+    custom_domain VARCHAR(255), -- Domain customizado do cliente (ex: app.empresa.com)
     logo_url TEXT,
     custom_settings JSONB DEFAULT '{}',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -233,32 +238,30 @@ INSERT INTO sys_users (email, password_hash, full_name, status) VALUES
 INSERT INTO sys_user_roles (sys_user_id, sys_role_id)
 SELECT id, 1 FROM sys_users WHERE email = 'admin@teste.com';
 
--- Default features
-INSERT INTO features (title, slug, description) VALUES
-    ('Products', 'products', 'Product management module'),
-    ('Services', 'services', 'Service management module');
+-- Default features (UUIDs fixos para facilitar)
+INSERT INTO features (id, title, slug, description) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Products', 'products', 'Product management module'),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Services', 'services', 'Service management module');
 
--- Default plans
-INSERT INTO plans (name, description, price) VALUES
-    ('Products Plan', 'Plan with product management only', 19.99),
-    ('Services Plan', 'Plan with service management only', 19.99),
-    ('Premium Plan', 'Full plan with products and services', 39.99);
+-- Default plans (UUIDs fixos para facilitar)
+INSERT INTO plans (id, name, description, price) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Products Plan', 'Plan with product management only', 19.99),
+    ('22222222-2222-2222-2222-222222222222', 'Services Plan', 'Plan with service management only', 19.99),
+    ('33333333-3333-3333-3333-333333333333', 'Premium Plan', 'Full plan with products and services', 39.99);
 
--- Link features to plans
+-- Link features to plans (usando UUIDs fixos)
 -- Products Plan: only products
-INSERT INTO plan_features (plan_id, feature_id)
-SELECT p.id, f.id FROM plans p, features f
-WHERE p.name = 'Products Plan' AND f.slug = 'products';
+INSERT INTO plan_features (plan_id, feature_id) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
 -- Services Plan: only services
-INSERT INTO plan_features (plan_id, feature_id)
-SELECT p.id, f.id FROM plans p, features f
-WHERE p.name = 'Services Plan' AND f.slug = 'services';
+INSERT INTO plan_features (plan_id, feature_id) VALUES
+    ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
 
 -- Premium Plan: all features
-INSERT INTO plan_features (plan_id, feature_id)
-SELECT p.id, f.id FROM plans p, features f
-WHERE p.name = 'Premium Plan';
+INSERT INTO plan_features (plan_id, feature_id) VALUES
+    ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+    ('33333333-3333-3333-3333-333333333333', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
 
 -- Default permissions
 INSERT INTO permissions (name, slug, description) VALUES

@@ -121,18 +121,20 @@ test-tenant:
 	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
 		-H "Content-Type: application/json" \
 		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	PLAN_ID=$$(docker exec saas-postgres psql -U postgres -d master_db -t -c "SELECT id FROM plans LIMIT 1" | tr -d ' \n'); \
 	curl -X POST http://localhost:8080/api/v1/admin/tenants \
 		-H "Content-Type: application/json" \
 		-H "Authorization: Bearer $$TOKEN" \
-		-d "{\"name\":\"Empresa Teste\",\"url_code\":\"teste\",\"plan_id\":\"$$PLAN_ID\",\"company_name\":\"Empresa Teste Ltda\",\"industry\":\"Tecnologia\"}"
+		-d '{"name":"Empresa Teste","url_code":"teste","plan_id":"33333333-3333-3333-3333-333333333333","billing_cycle":"monthly","company_name":"Empresa Teste Ltda","is_company":true}'
 	@echo ""
 	@echo "Check worker logs: wsl make logs-worker"
 
-		-H "Authorization: Bearer $$TOKEN" \
-		-d "{\"name\":\"Empresa Teste\",\"url_code\":\"teste\",\"plan_id\":\"$$PLAN_ID\",\"company_name\":\"Empresa Teste Ltda\",\"industry\":\"Tecnologia\"}"
+# Test subscription endpoint (cadastro público de assinante)
+test-subscription:
+	@echo "Testing subscription endpoint..."
+	@curl -X POST http://localhost:8081/api/v1/subscription \
+		-H "Content-Type: application/json" \
+		-d '{"plan_id":"33333333-3333-3333-3333-333333333333","billing_cycle":"monthly","name":"João Silva","is_company":false,"subdomain":"joao","email":"joao@teste.com","password":"senha12345"}'
 	@echo ""
-	@echo "Check worker logs: wsl make logs-worker"
 
 # Clean everything
 clean:

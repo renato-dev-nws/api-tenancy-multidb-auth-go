@@ -37,12 +37,15 @@ func NewTenantService(
 
 // CreateTenantRequest representa os dados para criar um tenant
 type CreateTenantRequest struct {
-	Name        string    `json:"name" binding:"required"`
-	URLCode     string    `json:"url_code" binding:"required,min=3,max=50"`
-	OwnerID     uuid.UUID `json:"-"` // Injetado pelo handler a partir do token
-	PlanID      uuid.UUID `json:"plan_id" binding:"required"`
-	CompanyName string    `json:"company_name"`
-	Industry    string    `json:"industry"`
+	Name         string              `json:"name" binding:"required"`
+	URLCode      string              `json:"url_code" binding:"required,min=3,max=50"`
+	OwnerID      *uuid.UUID          `json:"owner_id,omitempty"` // Opcional: pode ser nil quando criado pela Admin API
+	PlanID       uuid.UUID           `json:"plan_id" binding:"required"`
+	BillingCycle models.BillingCycle `json:"billing_cycle" binding:"required"`
+	CompanyName  string              `json:"company_name"`
+	IsCompany    bool                `json:"is_company"`
+	CustomDomain string              `json:"custom_domain,omitempty"`
+	Industry     string              `json:"industry,omitempty"` // Deprecated: usar custom_settings
 }
 
 // ProvisionEvent representa o evento de provisionamento publicado no Redis
@@ -56,10 +59,14 @@ type ProvisionEvent struct {
 // CreateTenant cria um novo tenant de forma síncrona no Master DB
 // e publica evento para provisionamento assíncrono do banco de dados
 func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantRequest) (*models.Tenant, error) {
-	// Validar se o owner existe
-	_, err := s.userRepo.GetUserByID(ctx, req.OwnerID)
-	if err != nil {
-		return nil, fmt.Errorf("owner not found: %w", err)
+	var err error
+
+	// Validar se o owner existe (somente se fornecido)
+	if req.OwnerID != nil {
+		_, err = s.userRepo.GetUserByID(ctx, *req.OwnerID)
+		if err != nil {
+			return nil, fmt.Errorf("owner not found: %w", err)
+		}
 	}
 
 	// Normalizar e validar URL code
@@ -83,9 +90,9 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 
 	// Criar tenant no Master DB com status 'provisioning'
 	query := `
-		INSERT INTO tenants (id, db_code, url_code, owner_id, plan_id, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, db_code, url_code, owner_id, plan_id, status, created_at, updated_at
+		INSERT INTO tenants (id, db_code, url_code, owner_id, plan_id, billing_cycle, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, db_code, url_code, owner_id, plan_id, billing_cycle, status, created_at, updated_at
 	`
 
 	now := time.Now()
@@ -99,6 +106,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		urlCode,
 		req.OwnerID,
 		req.PlanID,
+		req.BillingCycle,
 		"provisioning",
 		now,
 		now,
@@ -108,6 +116,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		&tenant.URLCode,
 		&tenant.OwnerID,
 		&tenant.PlanID,
+		&tenant.BillingCycle,
 		&tenant.Status,
 		&tenant.CreatedAt,
 		&tenant.UpdatedAt,
@@ -117,11 +126,10 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		return nil, fmt.Errorf("erro ao criar tenant: %w", err)
 	}
 
-	// Criar perfil do tenant com custom_settings
+	// Criar perfil do tenant
 	customSettings := map[string]interface{}{
-		"name":         req.Name,
-		"company_name": req.CompanyName,
-		"industry":     req.Industry,
+		"name":     req.Name,
+		"industry": req.Industry,
 	}
 
 	settingsJSON, err := json.Marshal(customSettings)
@@ -131,9 +139,12 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 
 	_, err = s.masterPool.Exec(
 		ctx,
-		`INSERT INTO tenant_profiles (tenant_id, custom_settings, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO tenant_profiles (tenant_id, company_name, is_company, custom_domain, custom_settings, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		tenantID,
+		req.CompanyName,
+		req.IsCompany,
+		req.CustomDomain,
 		settingsJSON,
 		now,
 		now,
@@ -143,26 +154,28 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		return nil, fmt.Errorf("erro ao criar perfil do tenant: %w", err)
 	}
 
-	// Adicionar owner como membro com role de owner
-	var ownerRoleID uuid.UUID
-	err = s.masterPool.QueryRow(ctx, "SELECT id FROM roles WHERE slug = 'owner' LIMIT 1").Scan(&ownerRoleID)
-	if err != nil {
-		return nil, fmt.Errorf("role 'owner' não encontrada: %w", err)
-	}
+	// Adicionar owner como membro com role de owner (somente se owner_id foi fornecido)
+	if req.OwnerID != nil {
+		var ownerRoleID uuid.UUID
+		err = s.masterPool.QueryRow(ctx, "SELECT id FROM roles WHERE slug = 'owner' LIMIT 1").Scan(&ownerRoleID)
+		if err != nil {
+			return nil, fmt.Errorf("role 'owner' não encontrada: %w", err)
+		}
 
-	_, err = s.masterPool.Exec(
-		ctx,
-		`INSERT INTO tenant_members (tenant_id, user_id, role_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		tenantID,
-		req.OwnerID,
-		ownerRoleID,
-		now,
-		now,
-	)
+		_, err = s.masterPool.Exec(
+			ctx,
+			`INSERT INTO tenant_members (tenant_id, user_id, role_id, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5)`,
+			tenantID,
+			req.OwnerID,
+			ownerRoleID,
+			now,
+			now,
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("erro ao adicionar owner como membro: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao adicionar owner como membro: %w", err)
+		}
 	}
 
 	// Publicar evento para provisionamento assíncrono

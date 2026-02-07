@@ -7,21 +7,24 @@ import (
 	"github.com/saas-multi-database-api/internal/config"
 	"github.com/saas-multi-database-api/internal/models"
 	"github.com/saas-multi-database-api/internal/repository"
+	"github.com/saas-multi-database-api/internal/services"
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
 // TenantAuthHandler handles authentication for tenant users (Data Plane)
 type TenantAuthHandler struct {
-	userRepo   *repository.UserRepository
-	tenantRepo *repository.TenantRepository
-	cfg        *config.Config
+	userRepo      *repository.UserRepository
+	tenantRepo    *repository.TenantRepository
+	tenantService *services.TenantService
+	cfg           *config.Config
 }
 
-func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *TenantAuthHandler {
+func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, tenantService *services.TenantService, cfg *config.Config) *TenantAuthHandler {
 	return &TenantAuthHandler{
-		userRepo:   userRepo,
-		tenantRepo: tenantRepo,
-		cfg:        cfg,
+		userRepo:      userRepo,
+		tenantRepo:    tenantRepo,
+		tenantService: tenantService,
+		cfg:           cfg,
 	}
 }
 
@@ -78,7 +81,7 @@ func (h *TenantAuthHandler) Register(c *gin.Context) {
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
 	response.Tenants = []models.UserTenant{} // New user has no tenants yet
-	response.LastTenantLogged = ""           // No tenant logged yet
+	response.LastTenantLogged = nil          // No tenant logged yet
 
 	c.JSON(http.StatusCreated, response)
 }
@@ -216,4 +219,83 @@ func (h *TenantAuthHandler) GetMe(c *gin.Context) {
 		"last_tenant_logged": user.LastTenantLogged,
 		"tenants":            tenants,
 	})
+}
+
+// Subscribe cria um novo assinante com usuário e tenant simultaneamente
+func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
+	var req models.SubscriptionRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dados inválidos", "details": err.Error()})
+		return
+	}
+
+	// Normalize email
+	req.Email = utils.NormalizeEmail(req.Email)
+
+	// Se não for empresa, usar Name como CompanyName
+	if !req.IsCompany && req.CompanyName == "" {
+		req.CompanyName = req.Name
+	}
+
+	// Hash password
+	hashedPassword, err := utils.HashPassword(req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	// Criar usuário
+	user, err := h.userRepo.CreateUser(c.Request.Context(), req.Email, string(hashedPassword))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
+		return
+	}
+
+	// Criar perfil do usuário
+	err = h.userRepo.CreateUserProfile(c.Request.Context(), user.ID, req.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user profile"})
+		return
+	}
+
+	// Criar tenant com o usuário como owner
+	tenantReq := services.CreateTenantRequest{
+		Name:         req.Name,
+		URLCode:      req.Subdomain,
+		OwnerID:      &user.ID,
+		PlanID:       req.PlanID,
+		BillingCycle: req.BillingCycle,
+		CompanyName:  req.CompanyName,
+		IsCompany:    req.IsCompany,
+		CustomDomain: req.CustomDomain,
+	}
+
+	tenant, err := h.tenantService.CreateTenant(c.Request.Context(), tenantReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tenant", "details": err.Error()})
+		return
+	}
+
+	// Gerar JWT para o usuário
+	token, err := utils.GenerateTenantJWT(user.ID, h.cfg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		return
+	}
+
+	// Retornar resposta completa
+	response := models.SubscriptionResponse{
+		Token: token,
+		User: models.User{
+			ID:               user.ID,
+			Email:            user.Email,
+			LastTenantLogged: user.LastTenantLogged,
+			CreatedAt:        user.CreatedAt,
+			UpdatedAt:        user.UpdatedAt,
+		},
+		Tenant: *tenant,
+	}
+
+	c.JSON(http.StatusCreated, response)
 }

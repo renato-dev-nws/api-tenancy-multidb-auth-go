@@ -10,7 +10,7 @@ type User struct {
 	ID               uuid.UUID `json:"id"`
 	Email            string    `json:"email"`
 	PasswordHash     string    `json:"-"`
-	LastTenantLogged string    `json:"last_tenant_logged,omitempty"`
+	LastTenantLogged *string   `json:"last_tenant_logged,omitempty"` // Nullable: usuário pode não ter acessado nenhum tenant ainda
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -24,15 +24,25 @@ type UserProfile struct {
 }
 
 type Tenant struct {
-	ID        uuid.UUID    `json:"id"`
-	DBCode    uuid.UUID    `json:"db_code"`
-	URLCode   string       `json:"url_code"`
-	OwnerID   uuid.UUID    `json:"owner_id"`
-	PlanID    uuid.UUID    `json:"plan_id"`
-	Status    TenantStatus `json:"status"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID           uuid.UUID    `json:"id"`
+	DBCode       uuid.UUID    `json:"db_code"`
+	URLCode      string       `json:"url_code"`
+	OwnerID      *uuid.UUID   `json:"owner_id,omitempty"` // Nullable: tenant pode ser criado sem owner pela Admin API
+	PlanID       uuid.UUID    `json:"plan_id"`
+	BillingCycle BillingCycle `json:"billing_cycle"`
+	Status       TenantStatus `json:"status"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
 }
+
+type BillingCycle string
+
+const (
+	BillingCycleMonthly    BillingCycle = "monthly"
+	BillingCycleQuarterly  BillingCycle = "quarterly"
+	BillingCycleSemiannual BillingCycle = "semiannual"
+	BillingCycleAnnual     BillingCycle = "annual"
+)
 
 type TenantStatus string
 
@@ -44,6 +54,9 @@ const (
 
 type TenantProfile struct {
 	TenantID       uuid.UUID              `json:"tenant_id"`
+	CompanyName    string                 `json:"company_name,omitempty"`
+	IsCompany      bool                   `json:"is_company"`
+	CustomDomain   string                 `json:"custom_domain,omitempty"`
 	LogoURL        string                 `json:"logo_url,omitempty"`
 	CustomSettings map[string]interface{} `json:"custom_settings,omitempty"`
 	CreatedAt      time.Time              `json:"created_at"`
@@ -134,7 +147,7 @@ type TenantLoginResponse struct {
 		FullName string    `json:"full_name"`
 	} `json:"user"`
 	Tenants          []UserTenant `json:"tenants"`
-	LastTenantLogged string       `json:"last_tenant_logged,omitempty"`
+	LastTenantLogged *string      `json:"last_tenant_logged,omitempty"`
 }
 
 type UserTenant struct {
@@ -147,4 +160,24 @@ type UserTenant struct {
 type TenantConfigResponse struct {
 	Features    []string `json:"features"`
 	Permissions []string `json:"permissions"`
+}
+
+// SubscriptionRequest representa o cadastro completo de um novo assinante
+type SubscriptionRequest struct {
+	PlanID       uuid.UUID    `json:"plan_id" binding:"required"`
+	BillingCycle BillingCycle `json:"billing_cycle" binding:"required"`
+	Name         string       `json:"name" binding:"required"`
+	IsCompany    bool         `json:"is_company"`
+	CompanyName  string       `json:"company_name,omitempty"` // Se não for empresa, usar Name
+	Subdomain    string       `json:"subdomain" binding:"required,min=3,max=11"`
+	Email        string       `json:"email" binding:"required,email"`
+	Password     string       `json:"password" binding:"required,min=8"`
+	CustomDomain string       `json:"custom_domain,omitempty"` // Domínio customizado opcional
+}
+
+// SubscriptionResponse retorna o token e dados do tenant criado
+type SubscriptionResponse struct {
+	Token  string `json:"token"`
+	User   User   `json:"user"`
+	Tenant Tenant `json:"tenant"`
 }

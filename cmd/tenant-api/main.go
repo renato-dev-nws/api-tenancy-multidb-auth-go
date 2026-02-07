@@ -17,6 +17,7 @@ import (
 	"github.com/saas-multi-database-api/internal/handlers"
 	"github.com/saas-multi-database-api/internal/middleware"
 	"github.com/saas-multi-database-api/internal/repository"
+	"github.com/saas-multi-database-api/internal/services"
 )
 
 // Tenant API - Data Plane
@@ -50,8 +51,11 @@ func main() {
 	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
 	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
 
+	// Initialize services
+	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+
 	// Initialize handlers
-	authHandler := handlers.NewTenantAuthHandler(userRepo, tenantRepo, cfg)
+	authHandler := handlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
 	tenantHandler := handlers.NewTenantHandler(nil) // TenantService not needed for Data Plane
 
 	// Setup router
@@ -114,6 +118,7 @@ func setupTenantRouter(
 	{
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
+		public.POST("/subscription", authHandler.Subscribe) // Nova rota de assinatura
 	}
 
 	// Protected tenant user routes (requires tenant JWT)
