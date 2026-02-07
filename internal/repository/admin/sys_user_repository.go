@@ -1,11 +1,11 @@
-package repository
+package admin
 
 import (
 	"context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/saas-multi-database-api/internal/models"
+	"github.com/saas-multi-database-api/internal/models/admin"
 )
 
 type SysUserRepository struct {
@@ -17,14 +17,14 @@ func NewSysUserRepository(pool *pgxpool.Pool) *SysUserRepository {
 }
 
 // CreateSysUser cria um novo administrador do sistema
-func (r *SysUserRepository) CreateSysUser(ctx context.Context, email, passwordHash, fullName string) (*models.SysUser, error) {
+func (r *SysUserRepository) CreateSysUser(ctx context.Context, email, passwordHash, fullName string) (*admin.SysUser, error) {
 	query := `
 		INSERT INTO sys_users (email, password_hash, full_name, status)
 		VALUES ($1, $2, $3, 'active')
 		RETURNING id, email, full_name, avatar_url, status, created_at, updated_at
 	`
 
-	var user models.SysUser
+	var user admin.SysUser
 	err := r.pool.QueryRow(ctx, query, email, passwordHash, fullName).Scan(
 		&user.ID,
 		&user.Email,
@@ -43,14 +43,14 @@ func (r *SysUserRepository) CreateSysUser(ctx context.Context, email, passwordHa
 }
 
 // GetSysUserByEmail busca administrador por email
-func (r *SysUserRepository) GetSysUserByEmail(ctx context.Context, email string) (*models.SysUser, error) {
+func (r *SysUserRepository) GetSysUserByEmail(ctx context.Context, email string) (*admin.SysUser, error) {
 	query := `
 		SELECT id, email, password_hash, full_name, avatar_url, status, created_at, updated_at
 		FROM sys_users
 		WHERE email = $1 AND status = 'active'
 	`
 
-	var user models.SysUser
+	var user admin.SysUser
 	err := r.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
@@ -70,14 +70,14 @@ func (r *SysUserRepository) GetSysUserByEmail(ctx context.Context, email string)
 }
 
 // GetSysUserByID busca administrador por ID
-func (r *SysUserRepository) GetSysUserByID(ctx context.Context, id uuid.UUID) (*models.SysUser, error) {
+func (r *SysUserRepository) GetSysUserByID(ctx context.Context, id uuid.UUID) (*admin.SysUser, error) {
 	query := `
 		SELECT id, email, password_hash, full_name, avatar_url, status, created_at, updated_at
 		FROM sys_users
 		WHERE id = $1 AND status = 'active'
 	`
 
-	var user models.SysUser
+	var user admin.SysUser
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
@@ -97,7 +97,7 @@ func (r *SysUserRepository) GetSysUserByID(ctx context.Context, id uuid.UUID) (*
 }
 
 // GetSysUserRoles retorna as roles de um sys_user
-func (r *SysUserRepository) GetSysUserRoles(ctx context.Context, sysUserID uuid.UUID) ([]models.SysRole, error) {
+func (r *SysUserRepository) GetSysUserRoles(ctx context.Context, sysUserID uuid.UUID) ([]admin.SysRole, error) {
 	query := `
 		SELECT sr.id, sr.name, sr.slug, sr.description, sr.created_at, sr.updated_at
 		FROM sys_roles sr
@@ -112,9 +112,9 @@ func (r *SysUserRepository) GetSysUserRoles(ctx context.Context, sysUserID uuid.
 	}
 	defer rows.Close()
 
-	var roles []models.SysRole
+	var roles []admin.SysRole
 	for rows.Next() {
-		var role models.SysRole
+		var role admin.SysRole
 		err := rows.Scan(
 			&role.ID,
 			&role.Name,
@@ -133,7 +133,7 @@ func (r *SysUserRepository) GetSysUserRoles(ctx context.Context, sysUserID uuid.
 }
 
 // GetSysUserPermissions retorna as permissões de um sys_user (através de suas roles)
-func (r *SysUserRepository) GetSysUserPermissions(ctx context.Context, sysUserID uuid.UUID) ([]models.SysPermission, error) {
+func (r *SysUserRepository) GetSysUserPermissions(ctx context.Context, sysUserID uuid.UUID) ([]admin.SysPermission, error) {
 	query := `
 		SELECT DISTINCT sp.id, sp.name, sp.slug, sp.description, sp.created_at, sp.updated_at
 		FROM sys_permissions sp
@@ -149,9 +149,9 @@ func (r *SysUserRepository) GetSysUserPermissions(ctx context.Context, sysUserID
 	}
 	defer rows.Close()
 
-	var permissions []models.SysPermission
+	var permissions []admin.SysPermission
 	for rows.Next() {
-		var perm models.SysPermission
+		var perm admin.SysPermission
 		err := rows.Scan(
 			&perm.ID,
 			&perm.Name,
@@ -182,7 +182,7 @@ func (r *SysUserRepository) AssignRoleToSysUser(ctx context.Context, sysUserID, 
 }
 
 // GetAllSysUsers lista todos os administradores do sistema
-func (r *SysUserRepository) GetAllSysUsers(ctx context.Context) ([]models.SysUser, error) {
+func (r *SysUserRepository) GetAllSysUsers(ctx context.Context) ([]admin.SysUser, error) {
 	query := `
 		SELECT id, email, full_name, avatar_url, status, created_at, updated_at
 		FROM sys_users
@@ -195,9 +195,9 @@ func (r *SysUserRepository) GetAllSysUsers(ctx context.Context) ([]models.SysUse
 	}
 	defer rows.Close()
 
-	var users []models.SysUser
+	var users []admin.SysUser
 	for rows.Next() {
-		var user models.SysUser
+		var user admin.SysUser
 		err := rows.Scan(
 			&user.ID,
 			&user.Email,
@@ -217,7 +217,7 @@ func (r *SysUserRepository) GetAllSysUsers(ctx context.Context) ([]models.SysUse
 }
 
 // UpdateSysUser atualiza dados de um administrador
-func (r *SysUserRepository) UpdateSysUser(ctx context.Context, id uuid.UUID, email, fullName string, avatarURL *string, status string) (*models.SysUser, error) {
+func (r *SysUserRepository) UpdateSysUser(ctx context.Context, id uuid.UUID, email, fullName string, avatarURL *string, status string) (*admin.SysUser, error) {
 	query := `
 		UPDATE sys_users
 		SET email = $2, full_name = $3, avatar_url = $4, status = $5, updated_at = NOW()
@@ -225,7 +225,7 @@ func (r *SysUserRepository) UpdateSysUser(ctx context.Context, id uuid.UUID, ema
 		RETURNING id, email, full_name, avatar_url, status, created_at, updated_at
 	`
 
-	var user models.SysUser
+	var user admin.SysUser
 	err := r.pool.QueryRow(ctx, query, id, email, fullName, avatarURL, status).Scan(
 		&user.ID,
 		&user.Email,

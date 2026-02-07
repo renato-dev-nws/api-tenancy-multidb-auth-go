@@ -11,13 +11,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/saas-multi-database-api/internal/cache"
 	"github.com/saas-multi-database-api/internal/config"
 	"github.com/saas-multi-database-api/internal/database"
-	"github.com/saas-multi-database-api/internal/handlers"
+	tenantHandlers "github.com/saas-multi-database-api/internal/handlers/tenant"
 	"github.com/saas-multi-database-api/internal/middleware"
-	"github.com/saas-multi-database-api/internal/repository"
-	"github.com/saas-multi-database-api/internal/services"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 )
 
 // Tenant API - Data Plane
@@ -48,18 +50,17 @@ func main() {
 	}
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
-	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
+	userRepo := adminRepo.NewUserRepository(dbManager.GetMasterPool())
+	tenantRepo := adminRepo.NewTenantRepository(dbManager.GetMasterPool())
 
 	// Initialize services
-	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+	tenantService := adminService.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
 
 	// Initialize handlers
-	authHandler := handlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
-	tenantHandler := handlers.NewTenantHandler(nil) // TenantService not needed for Data Plane
+	authHandler := tenantHandlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
 
 	// Setup router
-	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, tenantHandler, tenantRepo)
+	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, tenantRepo, tenantService)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -102,9 +103,9 @@ func setupTenantRouter(
 	cfg *config.Config,
 	dbManager *database.Manager,
 	redisClient *cache.Client,
-	authHandler *handlers.TenantAuthHandler,
-	tenantHandler *handlers.TenantHandler,
-	tenantRepo *repository.TenantRepository,
+	authHandler *tenantHandlers.TenantAuthHandler,
+	tenantRepo *adminRepo.TenantRepository,
+	tenantService *adminService.TenantService,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -126,7 +127,12 @@ func setupTenantRouter(
 	protected.Use(middleware.TenantAuthMiddleware(cfg))
 	{
 		protected.GET("/auth/me", authHandler.GetMe)
-		protected.GET("/tenants", tenantHandler.ListMyTenants)
+		protected.GET("/tenants", func(c *gin.Context) {
+			userIDStr, _ := c.Get("user_id")
+			userID, _ := uuid.Parse(userIDStr.(string))
+			tenants, _ := tenantService.ListUserTenants(c.Request.Context(), userID)
+			c.JSON(http.StatusOK, tenants)
+		})
 	}
 
 	// Tenant-scoped routes (authentication + tenant resolution required)
@@ -138,7 +144,31 @@ func setupTenantRouter(
 		tenant.POST("/auth/login-to-tenant", authHandler.LoginToTenant)
 
 		// Tenant configuration endpoint for frontend
-		tenant.GET("/config", tenantHandler.GetConfig)
+		tenant.GET("/config", func(c *gin.Context) {
+			features := c.MustGet("features").([]string)
+			permissions := c.MustGet("permissions").([]string)
+			tenantIDStr := c.MustGet("tenant_id").(string)
+			tenantID, _ := uuid.Parse(tenantIDStr)
+
+			// Get tenant profile for layout configuration
+			profile, err := tenantRepo.GetTenantProfile(c.Request.Context(), tenantID)
+			if err != nil {
+				// If no profile found, use empty config
+				profile = &adminModels.TenantProfile{
+					CustomSettings: make(map[string]interface{}),
+				}
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"features":    features,
+				"permissions": permissions,
+				"config": gin.H{
+					"logo_url":        profile.LogoURL,
+					"company_name":    profile.CompanyName,
+					"custom_settings": profile.CustomSettings,
+				},
+			})
+		})
 
 		// Products routes (requires 'products' feature)
 		products := tenant.Group("/products")

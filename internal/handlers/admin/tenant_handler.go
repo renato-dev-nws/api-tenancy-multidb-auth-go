@@ -1,19 +1,19 @@
-package handlers
+package admin
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/services"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 )
 
 type TenantHandler struct {
-	tenantService *services.TenantService
+	tenantService *adminService.TenantService
 }
 
-func NewTenantHandler(tenantService *services.TenantService) *TenantHandler {
+func NewTenantHandler(tenantService *adminService.TenantService) *TenantHandler {
 	return &TenantHandler{
 		tenantService: tenantService,
 	}
@@ -25,7 +25,7 @@ func (h *TenantHandler) GetConfig(c *gin.Context) {
 	features := c.MustGet("features").([]string)
 	permissions := c.MustGet("permissions").([]string)
 
-	response := models.TenantConfigResponse{
+	response := adminModels.TenantConfigResponse{
 		Features:    features,
 		Permissions: permissions,
 	}
@@ -39,7 +39,7 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 	// Para Tenant API: poderia usar o user_id autenticado como owner
 	// Por enquanto, aceita owner_id opcional no body ou deixa nil
 
-	var req services.CreateTenantRequest
+	var req adminService.CreateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "dados inválidos", "details": err.Error()})
 		return

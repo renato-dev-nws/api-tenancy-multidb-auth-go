@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/saas-multi-database-api/internal/config"
-	"github.com/saas-multi-database-api/internal/services"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 )
 
 // Worker responsável por processar eventos de provisionamento de tenants
@@ -93,7 +93,7 @@ func processEvents(redisClient *redis.Client, masterPool, adminPool *pgxpool.Poo
 			// result[0] é a chave, result[1] é o valor
 			eventJSON := result[1]
 
-			var event services.ProvisionEvent
+			var event adminService.ProvisionEvent
 			if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
 				log.Printf("Erro ao deserializar evento: %v", err)
 				continue
@@ -118,7 +118,7 @@ func processEvents(redisClient *redis.Client, masterPool, adminPool *pgxpool.Poo
 }
 
 // provisionTenant cria o banco de dados do tenant e aplica migrations
-func provisionTenant(ctx context.Context, event services.ProvisionEvent, masterPool, adminPool *pgxpool.Pool) error {
+func provisionTenant(ctx context.Context, event adminService.ProvisionEvent, masterPool, adminPool *pgxpool.Pool) error {
 	// Substituir hífens por underscores no db_code para nome válido de database
 	dbCode := strings.ReplaceAll(event.DBCode, "-", "_")
 	dbName := fmt.Sprintf("db_tenant_%s", dbCode)

@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"net/http"
@@ -6,15 +6,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 )
 
 type FeatureHandler struct {
-	featureRepo *repository.FeatureRepository
+	featureRepo *adminRepo.FeatureRepository
 }
 
-func NewFeatureHandler(featureRepo *repository.FeatureRepository) *FeatureHandler {
+func NewFeatureHandler(featureRepo *adminRepo.FeatureRepository) *FeatureHandler {
 	return &FeatureHandler{
 		featureRepo: featureRepo,
 	}
@@ -30,7 +30,7 @@ func (h *FeatureHandler) GetAllFeatures(c *gin.Context) {
 	}
 
 	// Para cada feature, buscar quantos planos usam
-	var featureResponses []models.FeatureResponse
+	var featureResponses []adminModels.FeatureResponse
 	for _, feature := range features {
 		planCount, err := h.featureRepo.GetFeaturePlanCount(c.Request.Context(), feature.ID)
 		if err != nil {
@@ -38,7 +38,7 @@ func (h *FeatureHandler) GetAllFeatures(c *gin.Context) {
 			return
 		}
 
-		featureResponses = append(featureResponses, models.FeatureResponse{
+		featureResponses = append(featureResponses, adminModels.FeatureResponse{
 			ID:          feature.ID,
 			Title:       feature.Title,
 			Slug:        feature.Slug,
@@ -51,7 +51,7 @@ func (h *FeatureHandler) GetAllFeatures(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, models.FeatureListResponse{
+	c.JSON(http.StatusOK, adminModels.FeatureListResponse{
 		Features: featureResponses,
 		Total:    len(featureResponses),
 	})
@@ -79,7 +79,7 @@ func (h *FeatureHandler) GetFeatureByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.FeatureResponse{
+	c.JSON(http.StatusOK, adminModels.FeatureResponse{
 		ID:          feature.ID,
 		Title:       feature.Title,
 		Slug:        feature.Slug,
@@ -95,7 +95,7 @@ func (h *FeatureHandler) GetFeatureByID(c *gin.Context) {
 // CreateFeature cria uma nova feature
 // POST /api/v1/admin/features
 func (h *FeatureHandler) CreateFeature(c *gin.Context) {
-	var req models.CreateFeatureRequest
+	var req adminModels.CreateFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -134,7 +134,7 @@ func (h *FeatureHandler) CreateFeature(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.FeatureResponse{
+	c.JSON(http.StatusCreated, adminModels.FeatureResponse{
 		ID:          feature.ID,
 		Title:       feature.Title,
 		Slug:        feature.Slug,
@@ -157,7 +157,7 @@ func (h *FeatureHandler) UpdateFeature(c *gin.Context) {
 		return
 	}
 
-	var req models.UpdateFeatureRequest
+	var req adminModels.UpdateFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -202,7 +202,7 @@ func (h *FeatureHandler) UpdateFeature(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.FeatureResponse{
+	c.JSON(http.StatusOK, adminModels.FeatureResponse{
 		ID:          feature.ID,
 		Title:       feature.Title,
 		Slug:        feature.Slug,

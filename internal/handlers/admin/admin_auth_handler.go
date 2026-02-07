@@ -1,22 +1,22 @@
-package handlers
+package admin
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saas-multi-database-api/internal/config"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
 // AdminAuthHandler handles authentication for SaaS administrators (Control Plane)
 type AdminAuthHandler struct {
-	sysUserRepo *repository.SysUserRepository
+	sysUserRepo *adminRepo.SysUserRepository
 	cfg         *config.Config
 }
 
-func NewAdminAuthHandler(sysUserRepo *repository.SysUserRepository, cfg *config.Config) *AdminAuthHandler {
+func NewAdminAuthHandler(sysUserRepo *adminRepo.SysUserRepository, cfg *config.Config) *AdminAuthHandler {
 	return &AdminAuthHandler{
 		sysUserRepo: sysUserRepo,
 		cfg:         cfg,
@@ -25,7 +25,7 @@ func NewAdminAuthHandler(sysUserRepo *repository.SysUserRepository, cfg *config.
 
 // Register creates a new SaaS administrator
 func (h *AdminAuthHandler) Register(c *gin.Context) {
-	var req models.AdminRegisterRequest
+	var req adminModels.AdminRegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -64,16 +64,16 @@ func (h *AdminAuthHandler) Register(c *gin.Context) {
 	// Get user roles and permissions
 	roles, err := h.sysUserRepo.GetSysUserRoles(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		roles = []models.SysRole{} // Fallback to empty
+		roles = []adminModels.SysRole{} // Fallback to empty
 	}
 
 	permissions, err := h.sysUserRepo.GetSysUserPermissions(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		permissions = []models.SysPermission{} // Fallback to empty
+		permissions = []adminModels.SysPermission{} // Fallback to empty
 	}
 
 	// Build response
-	response := models.AdminLoginResponse{
+	response := adminModels.AdminLoginResponse{
 		Token: token,
 	}
 	response.SysUser.ID = sysUser.ID
@@ -97,7 +97,7 @@ func (h *AdminAuthHandler) Register(c *gin.Context) {
 
 // Login authenticates a SaaS administrator
 func (h *AdminAuthHandler) Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req adminModels.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -130,16 +130,16 @@ func (h *AdminAuthHandler) Login(c *gin.Context) {
 	// Get user roles and permissions
 	roles, err := h.sysUserRepo.GetSysUserRoles(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		roles = []models.SysRole{} // Fallback to empty
+		roles = []adminModels.SysRole{} // Fallback to empty
 	}
 
 	permissions, err := h.sysUserRepo.GetSysUserPermissions(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		permissions = []models.SysPermission{} // Fallback to empty
+		permissions = []adminModels.SysPermission{} // Fallback to empty
 	}
 
 	// Build response
-	response := models.AdminLoginResponse{
+	response := adminModels.AdminLoginResponse{
 		Token: token,
 	}
 	response.SysUser.ID = sysUser.ID
@@ -174,12 +174,12 @@ func (h *AdminAuthHandler) GetMe(c *gin.Context) {
 	// Get roles and permissions
 	roles, err := h.sysUserRepo.GetSysUserRoles(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		roles = []models.SysRole{}
+		roles = []adminModels.SysRole{}
 	}
 
 	permissions, err := h.sysUserRepo.GetSysUserPermissions(c.Request.Context(), sysUser.ID)
 	if err != nil {
-		permissions = []models.SysPermission{}
+		permissions = []adminModels.SysPermission{}
 	}
 
 	// Extract slugs

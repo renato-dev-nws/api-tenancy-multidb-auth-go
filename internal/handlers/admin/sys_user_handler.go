@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"net/http"
@@ -6,16 +6,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
 type SysUserHandler struct {
-	sysUserRepo *repository.SysUserRepository
+	sysUserRepo *adminRepo.SysUserRepository
 }
 
-func NewSysUserHandler(sysUserRepo *repository.SysUserRepository) *SysUserHandler {
+func NewSysUserHandler(sysUserRepo *adminRepo.SysUserRepository) *SysUserHandler {
 	return &SysUserHandler{
 		sysUserRepo: sysUserRepo,
 	}
@@ -31,7 +31,7 @@ func (h *SysUserHandler) GetAllSysUsers(c *gin.Context) {
 	}
 
 	// Para cada user, buscar suas roles
-	var userResponses []models.SysUserResponse
+	var userResponses []adminModels.SysUserResponse
 	for _, user := range users {
 		roles, err := h.sysUserRepo.GetSysUserRoles(c.Request.Context(), user.ID)
 		if err != nil {
@@ -44,7 +44,7 @@ func (h *SysUserHandler) GetAllSysUsers(c *gin.Context) {
 			roleNames = append(roleNames, role.Name)
 		}
 
-		userResponses = append(userResponses, models.SysUserResponse{
+		userResponses = append(userResponses, adminModels.SysUserResponse{
 			ID:        user.ID,
 			Email:     user.Email,
 			FullName:  user.FullName,
@@ -56,7 +56,7 @@ func (h *SysUserHandler) GetAllSysUsers(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, models.SysUserListResponse{
+	c.JSON(http.StatusOK, adminModels.SysUserListResponse{
 		Users: userResponses,
 		Total: len(userResponses),
 	})
@@ -89,7 +89,7 @@ func (h *SysUserHandler) GetSysUserByID(c *gin.Context) {
 		roleNames = append(roleNames, role.Name)
 	}
 
-	c.JSON(http.StatusOK, models.SysUserResponse{
+	c.JSON(http.StatusOK, adminModels.SysUserResponse{
 		ID:        user.ID,
 		Email:     user.Email,
 		FullName:  user.FullName,
@@ -104,7 +104,7 @@ func (h *SysUserHandler) GetSysUserByID(c *gin.Context) {
 // CreateSysUser cria um novo administrador
 // POST /api/v1/admin/sys-users
 func (h *SysUserHandler) CreateSysUser(c *gin.Context) {
-	var req models.CreateSysUserRequest
+	var req adminModels.CreateSysUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -140,7 +140,7 @@ func (h *SysUserHandler) CreateSysUser(c *gin.Context) {
 
 	// TODO: Atribuir roles se fornecidas (sys_roles.id é SERIAL/int, precisa ajustar AssignRoleToSysUser)
 
-	c.JSON(http.StatusCreated, models.SysUserResponse{
+	c.JSON(http.StatusCreated, adminModels.SysUserResponse{
 		ID:        user.ID,
 		Email:     user.Email,
 		FullName:  user.FullName,
@@ -162,7 +162,7 @@ func (h *SysUserHandler) UpdateSysUser(c *gin.Context) {
 		return
 	}
 
-	var req models.UpdateSysUserRequest
+	var req adminModels.UpdateSysUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -212,7 +212,7 @@ func (h *SysUserHandler) UpdateSysUser(c *gin.Context) {
 		roleNames = append(roleNames, role.Name)
 	}
 
-	c.JSON(http.StatusOK, models.SysUserResponse{
+	c.JSON(http.StatusOK, adminModels.SysUserResponse{
 		ID:        user.ID,
 		Email:     user.Email,
 		FullName:  user.FullName,

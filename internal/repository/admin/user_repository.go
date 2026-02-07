@@ -1,4 +1,4 @@
-package repository
+package admin
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/saas-multi-database-api/internal/models"
+	"github.com/saas-multi-database-api/internal/models/admin"
 )
 
 type UserRepository struct {
@@ -18,8 +18,8 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 }
 
 // CreateUser creates a new user in the database
-func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string) (*models.User, error) {
-	user := &models.User{}
+func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string) (*admin.User, error) {
+	user := &admin.User{}
 
 	query := `
 		INSERT INTO users (email, password_hash)
@@ -59,8 +59,8 @@ func (r *UserRepository) CreateUserProfile(ctx context.Context, userID uuid.UUID
 }
 
 // GetUserByEmail retrieves a user by email
-func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	user := &models.User{}
+func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*admin.User, error) {
+	user := &admin.User{}
 
 	query := `
 		SELECT id, email, password_hash, last_tenant_logged, created_at, updated_at
@@ -85,8 +85,8 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 // GetUserByID retrieves a user by ID
-func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
-	user := &models.User{}
+func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*admin.User, error) {
+	user := &admin.User{}
 
 	query := `
 		SELECT id, email, password_hash, last_tenant_logged, created_at, updated_at
@@ -111,8 +111,8 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*mo
 }
 
 // GetUserProfile retrieves a user's profile
-func (r *UserRepository) GetUserProfile(ctx context.Context, userID uuid.UUID) (*models.UserProfile, error) {
-	profile := &models.UserProfile{}
+func (r *UserRepository) GetUserProfile(ctx context.Context, userID uuid.UUID) (*admin.UserProfile, error) {
+	profile := &admin.UserProfile{}
 
 	query := `
 		SELECT user_id, full_name, COALESCE(avatar_url, '') as avatar_url, created_at, updated_at

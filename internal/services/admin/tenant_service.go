@@ -1,4 +1,4 @@
-package services
+package admin
 
 import (
 	"context"
@@ -9,21 +9,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	"github.com/saas-multi-database-api/internal/models/admin"
+	"github.com/saas-multi-database-api/internal/models/shared"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
 type TenantService struct {
-	repo        *repository.TenantRepository
-	userRepo    *repository.UserRepository
+	repo        *adminRepo.TenantRepository
+	userRepo    *adminRepo.UserRepository
 	redisClient *redis.Client
 	masterPool  *pgxpool.Pool
 }
 
 func NewTenantService(
-	repo *repository.TenantRepository,
-	userRepo *repository.UserRepository,
+	repo *adminRepo.TenantRepository,
+	userRepo *adminRepo.UserRepository,
 	redisClient *redis.Client,
 	masterPool *pgxpool.Pool,
 ) *TenantService {
@@ -42,7 +43,7 @@ type CreateTenantRequest struct {
 	URLCode      string              `json:"url_code,omitempty"`                        // Auto-generated if empty (admin routing)
 	OwnerID      *uuid.UUID          `json:"owner_id,omitempty"`                        // Opcional: pode ser nil quando criado pela Admin API
 	PlanID       uuid.UUID           `json:"plan_id" binding:"required"`
-	BillingCycle models.BillingCycle `json:"billing_cycle" binding:"required"`
+	BillingCycle shared.BillingCycle `json:"billing_cycle" binding:"required"`
 	CompanyName  string              `json:"company_name"`
 	IsCompany    bool                `json:"is_company"`
 	CustomDomain string              `json:"custom_domain,omitempty"`
@@ -59,7 +60,7 @@ type ProvisionEvent struct {
 
 // CreateTenant cria um novo tenant de forma síncrona no Master DB
 // e publica evento para provisionamento assíncrono do banco de dados
-func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantRequest) (*models.Tenant, error) {
+func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantRequest) (*admin.Tenant, error) {
 	var err error
 
 	// Validar se o owner existe (somente se fornecido)
@@ -116,7 +117,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 	`
 
 	now := time.Now()
-	tenant := &models.Tenant{}
+	tenant := &admin.Tenant{}
 
 	err = s.masterPool.QueryRow(
 		ctx,
@@ -247,14 +248,14 @@ func (s *TenantService) UpdateTenantStatus(ctx context.Context, tenantID uuid.UU
 }
 
 // GetTenantByID retorna um tenant pelo ID
-func (s *TenantService) GetTenantByID(ctx context.Context, tenantID uuid.UUID) (*models.Tenant, error) {
+func (s *TenantService) GetTenantByID(ctx context.Context, tenantID uuid.UUID) (*admin.Tenant, error) {
 	query := `
 		SELECT id, db_code, url_code, owner_id, plan_id, status, created_at, updated_at
 		FROM tenants
 		WHERE id = $1
 	`
 
-	tenant := &models.Tenant{}
+	tenant := &admin.Tenant{}
 	err := s.masterPool.QueryRow(ctx, query, tenantID).Scan(
 		&tenant.ID,
 		&tenant.DBCode,
@@ -274,6 +275,6 @@ func (s *TenantService) GetTenantByID(ctx context.Context, tenantID uuid.UUID) (
 }
 
 // ListUserTenants retorna todos os tenants de um usuário
-func (s *TenantService) ListUserTenants(ctx context.Context, userID uuid.UUID) ([]models.UserTenant, error) {
+func (s *TenantService) ListUserTenants(ctx context.Context, userID uuid.UUID) ([]admin.UserTenant, error) {
 	return s.repo.GetUserTenants(ctx, userID)
 }

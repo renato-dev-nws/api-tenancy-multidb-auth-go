@@ -1,4 +1,4 @@
-package repository
+package admin
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/saas-multi-database-api/internal/models"
+	"github.com/saas-multi-database-api/internal/models/admin"
 )
 
 type TenantRepository struct {
@@ -19,8 +19,8 @@ func NewTenantRepository(pool *pgxpool.Pool) *TenantRepository {
 }
 
 // GetTenantByURLCode retrieves a tenant by URL code
-func (r *TenantRepository) GetTenantByURLCode(ctx context.Context, urlCode string) (*models.Tenant, error) {
-	tenant := &models.Tenant{}
+func (r *TenantRepository) GetTenantByURLCode(ctx context.Context, urlCode string) (*admin.Tenant, error) {
+	tenant := &admin.Tenant{}
 
 	query := `
 		SELECT id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at
@@ -49,8 +49,8 @@ func (r *TenantRepository) GetTenantByURLCode(ctx context.Context, urlCode strin
 }
 
 // GetTenantBySubdomain retrieves a tenant by subdomain (public site routing)
-func (r *TenantRepository) GetTenantBySubdomain(ctx context.Context, subdomain string) (*models.Tenant, error) {
-	tenant := &models.Tenant{}
+func (r *TenantRepository) GetTenantBySubdomain(ctx context.Context, subdomain string) (*admin.Tenant, error) {
+	tenant := &admin.Tenant{}
 
 	query := `
 		SELECT id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at
@@ -163,7 +163,7 @@ func (r *TenantRepository) GetUserPermissions(ctx context.Context, userID, tenan
 }
 
 // GetUserTenants retrieves all tenants a user has access to
-func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]models.UserTenant, error) {
+func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]admin.UserTenant, error) {
 	query := `
 		SELECT DISTINCT 
 			t.id,
@@ -186,9 +186,9 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 	}
 	defer rows.Close()
 
-	var tenants []models.UserTenant
+	var tenants []admin.UserTenant
 	for rows.Next() {
-		var tenant models.UserTenant
+		var tenant admin.UserTenant
 		var name, role *string
 		var createdAt time.Time // Dummy variable to ignore in scan
 		if err := rows.Scan(&tenant.ID, &tenant.URLCode, &tenant.Subdomain, &name, &role, &createdAt); err != nil {
@@ -209,8 +209,42 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 
 	// Return empty slice if no tenants found
 	if tenants == nil {
-		return []models.UserTenant{}, nil
+		return []admin.UserTenant{}, nil
 	}
 
 	return tenants, nil
+}
+
+// GetTenantProfile retorna o perfil/configurações do tenant
+func (r *TenantRepository) GetTenantProfile(ctx context.Context, tenantID uuid.UUID) (*admin.TenantProfile, error) {
+	query := `
+		SELECT 
+			tenant_id,
+			company_name,
+			is_company,
+			COALESCE(custom_domain, '') as custom_domain,
+			COALESCE(logo_url, '') as logo_url,
+			COALESCE(custom_settings, '{}'::jsonb) as custom_settings,
+			created_at,
+			updated_at
+		FROM tenant_profiles
+		WHERE tenant_id = $1
+	`
+
+	var profile admin.TenantProfile
+	err := r.pool.QueryRow(ctx, query, tenantID).Scan(
+		&profile.TenantID,
+		&profile.CompanyName,
+		&profile.IsCompany,
+		&profile.CustomDomain,
+		&profile.LogoURL,
+		&profile.CustomSettings,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant profile: %w", err)
+	}
+
+	return &profile, nil
 }

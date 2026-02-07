@@ -12,11 +12,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/saas-multi-database-api/internal/cache"
 	"github.com/saas-multi-database-api/internal/database"
-	"github.com/saas-multi-database-api/internal/repository"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 )
 
 // TenantMiddleware resolves tenant from URL code and injects context
-func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, tenantRepo *repository.TenantRepository) gin.HandlerFunc {
+func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, tenantRepo *adminRepo.TenantRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract url_code from route parameter
 		urlCode := c.Param("url_code")
@@ -51,7 +51,7 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 		}
 
 		// Step 2: If not in cache, query from database
-		var tenant *repository.Tenant
+		var tenant *adminRepo.Tenant
 		if dbCode == "" {
 			// Query tenant from Master DB using the repository
 			tenantModel, err := tenantRepo.GetTenantByURLCode(ctx, urlCode)
@@ -61,7 +61,7 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 				return
 			}
 
-			tenant = &repository.Tenant{
+			tenant = &adminRepo.Tenant{
 				ID:     tenantModel.ID,
 				DBCode: tenantModel.DBCode,
 				Status: string(tenantModel.Status),
@@ -82,7 +82,7 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 				return
 			}
 
-			tenant = &repository.Tenant{
+			tenant = &adminRepo.Tenant{
 				ID:     tenantModel.ID,
 				DBCode: tenantModel.DBCode,
 				Status: string(tenantModel.Status),

@@ -1,25 +1,27 @@
-package handlers
+package tenant
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/saas-multi-database-api/internal/config"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
-	"github.com/saas-multi-database-api/internal/services"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	tenantModels "github.com/saas-multi-database-api/internal/models/tenant"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 	"github.com/saas-multi-database-api/internal/utils"
 )
 
 // TenantAuthHandler handles authentication for tenant users (Data Plane)
 type TenantAuthHandler struct {
-	userRepo      *repository.UserRepository
-	tenantRepo    *repository.TenantRepository
-	tenantService *services.TenantService
+	userRepo      *adminRepo.UserRepository
+	tenantRepo    *adminRepo.TenantRepository
+	tenantService *adminService.TenantService
 	cfg           *config.Config
 }
 
-func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, tenantService *services.TenantService, cfg *config.Config) *TenantAuthHandler {
+func NewTenantAuthHandler(userRepo *adminRepo.UserRepository, tenantRepo *adminRepo.TenantRepository, tenantService *adminService.TenantService, cfg *config.Config) *TenantAuthHandler {
 	return &TenantAuthHandler{
 		userRepo:      userRepo,
 		tenantRepo:    tenantRepo,
@@ -30,7 +32,7 @@ func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repos
 
 // Register creates a new tenant user
 func (h *TenantAuthHandler) Register(c *gin.Context) {
-	var req models.RegisterRequest
+	var req tenantModels.RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,21 +76,21 @@ func (h *TenantAuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response := models.TenantLoginResponse{
+	response := tenantModels.TenantLoginResponse{
 		Token: token,
 	}
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
-	response.Tenants = []models.UserTenant{} // New user has no tenants yet
-	response.LastTenantLogged = nil          // No tenant logged yet
+	response.Tenants = []tenantModels.UserTenant{} // New user has no tenants yet
+	response.LastTenantLogged = nil                // No tenant logged yet
 
 	c.JSON(http.StatusCreated, response)
 }
 
 // Login authenticates a tenant user and updates last_tenant_logged
 func (h *TenantAuthHandler) Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req tenantModels.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -126,17 +128,18 @@ func (h *TenantAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Get user tenants
-	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), user.ID)
+	adminTenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user tenants"})
 		return
 	}
+	tenants := convertUserTenants(adminTenants)
 	if tenants == nil {
-		tenants = []models.UserTenant{}
+		tenants = []tenantModels.UserTenant{}
 	}
 
 	// Build response
-	response := models.TenantLoginResponse{
+	response := tenantModels.TenantLoginResponse{
 		Token: token,
 	}
 	response.User.ID = user.ID
@@ -156,6 +159,14 @@ func (h *TenantAuthHandler) LoginToTenant(c *gin.Context) {
 	// Validate that user is authenticated
 	userID := c.MustGet("user_id").(string)
 	parsedUserID := mustParseUUID(userID)
+
+	// Get tenant_id from context (injected by TenantMiddleware)
+	tenantIDStr, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "tenant context not found"})
+		return
+	}
+	tenantID := mustParseUUID(tenantIDStr.(string))
 
 	// Verify user has access to this tenant
 	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), parsedUserID)
@@ -184,10 +195,33 @@ func (h *TenantAuthHandler) LoginToTenant(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message":            "last tenant logged updated",
-		"last_tenant_logged": urlCode,
-	})
+	// Get tenant features and user permissions (injected by TenantMiddleware)
+	features := c.MustGet("features").([]string)
+	permissions := c.MustGet("permissions").([]string)
+
+	// Get tenant profile for layout configuration
+	tenantProfile, err := h.tenantRepo.GetTenantProfile(c.Request.Context(), tenantID)
+	if err != nil {
+		// If no profile found, use empty config (not a critical error)
+		tenantProfile = &adminModels.TenantProfile{
+			CustomSettings: make(map[string]interface{}),
+		}
+	}
+
+	// Return complete configuration for frontend
+	response := tenantModels.LoginToTenantResponse{
+		Message:          "login successful",
+		LastTenantLogged: urlCode,
+		Features:         features,
+		Permissions:      permissions,
+		Config: tenantModels.TenantConfig{
+			LogoURL:        tenantProfile.LogoURL,
+			CompanyName:    tenantProfile.CompanyName,
+			CustomSettings: tenantProfile.CustomSettings,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetMe returns the authenticated tenant user's information
@@ -207,10 +241,11 @@ func (h *TenantAuthHandler) GetMe(c *gin.Context) {
 	}
 
 	// Get user tenants
-	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), user.ID)
+	adminTenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), user.ID)
 	if err != nil {
-		tenants = []models.UserTenant{}
+		adminTenants = []adminModels.UserTenant{}
 	}
+	tenants := convertUserTenants(adminTenants)
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":                 user.ID,
@@ -223,7 +258,7 @@ func (h *TenantAuthHandler) GetMe(c *gin.Context) {
 
 // Subscribe cria um novo assinante com usuário e tenant simultaneamente
 func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
-	var req models.SubscriptionRequest
+	var req tenantModels.SubscriptionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "dados inválidos", "details": err.Error()})
@@ -253,14 +288,21 @@ func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
 	}
 
 	// Criar perfil do usuário
-	err = h.userRepo.CreateUserProfile(c.Request.Context(), user.ID, req.Name)
+	err = h.userRepo.CreateUserProfile(c.Request.Context(), user.ID, req.FullName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user profile"})
 		return
 	}
 
+	// Get user profile for response
+	userProfile, err := h.userRepo.GetUserProfile(c.Request.Context(), user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user profile"})
+		return
+	}
+
 	// Criar tenant com o usuário como owner
-	tenantReq := services.CreateTenantRequest{
+	tenantReq := adminService.CreateTenantRequest{
 		Name:         req.Name,
 		Subdomain:    req.Subdomain, // User-chosen subdomain for public site (joao.meusaas.app)
 		URLCode:      "",            // Auto-generate admin URL code (ex: FR34JJO390G)
@@ -286,17 +328,37 @@ func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
 	}
 
 	// Retornar resposta completa
-	response := models.SubscriptionResponse{
+	response := tenantModels.SubscriptionResponse{
 		Token: token,
-		User: models.User{
-			ID:               user.ID,
-			Email:            user.Email,
-			LastTenantLogged: user.LastTenantLogged,
-			CreatedAt:        user.CreatedAt,
-			UpdatedAt:        user.UpdatedAt,
-		},
-		Tenant: *tenant,
 	}
+	response.User.ID = user.ID
+	response.User.Email = user.Email
+	response.User.FullName = userProfile.FullName
+	response.Tenant.ID = tenant.ID
+	response.Tenant.URLCode = tenant.URLCode
+	response.Tenant.Subdomain = tenant.Subdomain
+	response.Tenant.Name = req.Name // Use request name as tenant hasn't got a name field
 
 	c.JSON(http.StatusCreated, response)
+}
+
+// Helper function to parse UUID
+func mustParseUUID(s string) uuid.UUID {
+	id, _ := uuid.Parse(s)
+	return id
+}
+
+// Helper function to convert admin.UserTenant to tenantModels.UserTenant
+func convertUserTenants(adminTenants []adminModels.UserTenant) []tenantModels.UserTenant {
+	result := make([]tenantModels.UserTenant, len(adminTenants))
+	for i, at := range adminTenants {
+		result[i] = tenantModels.UserTenant{
+			ID:        at.ID,
+			URLCode:   at.URLCode,
+			Subdomain: at.Subdomain,
+			Name:      at.Name,
+			Role:      at.Role,
+		}
+	}
+	return result
 }

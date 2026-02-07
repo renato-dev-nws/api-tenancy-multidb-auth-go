@@ -14,10 +14,10 @@ import (
 	"github.com/saas-multi-database-api/internal/cache"
 	"github.com/saas-multi-database-api/internal/config"
 	"github.com/saas-multi-database-api/internal/database"
-	"github.com/saas-multi-database-api/internal/handlers"
+	adminHandlers "github.com/saas-multi-database-api/internal/handlers/admin"
 	"github.com/saas-multi-database-api/internal/middleware"
-	"github.com/saas-multi-database-api/internal/repository"
-	"github.com/saas-multi-database-api/internal/services"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 )
 
 // Admin API - Control Plane
@@ -53,21 +53,21 @@ func main() {
 	}
 
 	// Initialize repositories
-	sysUserRepo := repository.NewSysUserRepository(dbManager.GetMasterPool())
-	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
-	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
-	planRepo := repository.NewPlanRepository(dbManager.GetMasterPool())
-	featureRepo := repository.NewFeatureRepository(dbManager.GetMasterPool())
+	sysUserRepo := adminRepo.NewSysUserRepository(dbManager.GetMasterPool())
+	userRepo := adminRepo.NewUserRepository(dbManager.GetMasterPool())
+	tenantRepo := adminRepo.NewTenantRepository(dbManager.GetMasterPool())
+	planRepo := adminRepo.NewPlanRepository(dbManager.GetMasterPool())
+	featureRepo := adminRepo.NewFeatureRepository(dbManager.GetMasterPool())
 
 	// Initialize services
-	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+	tenantService := adminService.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
 
 	// Initialize handlers (Admin API uses SysUserRepository)
-	authHandler := handlers.NewAdminAuthHandler(sysUserRepo, cfg)
-	tenantHandler := handlers.NewTenantHandler(tenantService)
-	planHandler := handlers.NewPlanHandler(planRepo)
-	featureHandler := handlers.NewFeatureHandler(featureRepo)
-	sysUserHandler := handlers.NewSysUserHandler(sysUserRepo)
+	authHandler := adminHandlers.NewAdminAuthHandler(sysUserRepo, cfg)
+	tenantHandler := adminHandlers.NewTenantHandler(tenantService)
+	planHandler := adminHandlers.NewPlanHandler(planRepo)
+	featureHandler := adminHandlers.NewFeatureHandler(featureRepo)
+	sysUserHandler := adminHandlers.NewSysUserHandler(sysUserRepo)
 
 	// Setup router
 	router := setupAdminRouter(cfg, authHandler, tenantHandler, planHandler, featureHandler, sysUserHandler)
@@ -111,11 +111,11 @@ func main() {
 
 func setupAdminRouter(
 	cfg *config.Config,
-	authHandler *handlers.AdminAuthHandler,
-	tenantHandler *handlers.TenantHandler,
-	planHandler *handlers.PlanHandler,
-	featureHandler *handlers.FeatureHandler,
-	sysUserHandler *handlers.SysUserHandler,
+	authHandler *adminHandlers.AdminAuthHandler,
+	tenantHandler *adminHandlers.TenantHandler,
+	planHandler *adminHandlers.PlanHandler,
+	featureHandler *adminHandlers.FeatureHandler,
+	sysUserHandler *adminHandlers.SysUserHandler,
 ) *gin.Engine {
 	router := gin.Default()
 

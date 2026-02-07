@@ -1,19 +1,19 @@
-package handlers
+package admin
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/saas-multi-database-api/internal/models"
-	"github.com/saas-multi-database-api/internal/repository"
+	adminModels "github.com/saas-multi-database-api/internal/models/admin"
+	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
 )
 
 type PlanHandler struct {
-	planRepo *repository.PlanRepository
+	planRepo *adminRepo.PlanRepository
 }
 
-func NewPlanHandler(planRepo *repository.PlanRepository) *PlanHandler {
+func NewPlanHandler(planRepo *adminRepo.PlanRepository) *PlanHandler {
 	return &PlanHandler{
 		planRepo: planRepo,
 	}
@@ -29,7 +29,7 @@ func (h *PlanHandler) GetAllPlans(c *gin.Context) {
 	}
 
 	// Para cada plano, buscar suas features
-	var planResponses []models.PlanResponse
+	var planResponses []adminModels.PlanResponse
 	for _, plan := range plans {
 		features, err := h.planRepo.GetPlanFeatures(c.Request.Context(), plan.ID)
 		if err != nil {
@@ -37,7 +37,7 @@ func (h *PlanHandler) GetAllPlans(c *gin.Context) {
 			return
 		}
 
-		planResponses = append(planResponses, models.PlanResponse{
+		planResponses = append(planResponses, adminModels.PlanResponse{
 			ID:          plan.ID,
 			Name:        plan.Name,
 			Description: plan.Description,
@@ -48,7 +48,7 @@ func (h *PlanHandler) GetAllPlans(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, models.PlanListResponse{
+	c.JSON(http.StatusOK, adminModels.PlanListResponse{
 		Plans: planResponses,
 		Total: len(planResponses),
 	})
@@ -76,7 +76,7 @@ func (h *PlanHandler) GetPlanByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.PlanResponse{
+	c.JSON(http.StatusOK, adminModels.PlanResponse{
 		ID:          plan.ID,
 		Name:        plan.Name,
 		Description: plan.Description,
@@ -90,7 +90,7 @@ func (h *PlanHandler) GetPlanByID(c *gin.Context) {
 // CreatePlan cria um novo plano
 // POST /api/v1/admin/plans
 func (h *PlanHandler) CreatePlan(c *gin.Context) {
-	var req models.CreatePlanRequest
+	var req adminModels.CreatePlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -128,7 +128,7 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.PlanResponse{
+	c.JSON(http.StatusCreated, adminModels.PlanResponse{
 		ID:          plan.ID,
 		Name:        plan.Name,
 		Description: plan.Description,
@@ -149,7 +149,7 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	var req models.UpdatePlanRequest
+	var req adminModels.UpdatePlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
@@ -185,7 +185,7 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.PlanResponse{
+	c.JSON(http.StatusOK, adminModels.PlanResponse{
 		ID:          plan.ID,
 		Name:        plan.Name,
 		Description: plan.Description,

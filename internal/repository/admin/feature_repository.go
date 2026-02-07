@@ -1,4 +1,4 @@
-package repository
+package admin
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/saas-multi-database-api/internal/models"
+	"github.com/saas-multi-database-api/internal/models/admin"
 )
 
 type FeatureRepository struct {
@@ -18,7 +18,7 @@ func NewFeatureRepository(pool *pgxpool.Pool) *FeatureRepository {
 }
 
 // GetAllFeatures retorna todas as features
-func (r *FeatureRepository) GetAllFeatures(ctx context.Context) ([]models.Feature, error) {
+func (r *FeatureRepository) GetAllFeatures(ctx context.Context) ([]admin.Feature, error) {
 	query := `
 		SELECT id, title, slug, code, description, is_active, created_at, updated_at
 		FROM features
@@ -31,9 +31,9 @@ func (r *FeatureRepository) GetAllFeatures(ctx context.Context) ([]models.Featur
 	}
 	defer rows.Close()
 
-	var features []models.Feature
+	var features []admin.Feature
 	for rows.Next() {
-		var feature models.Feature
+		var feature admin.Feature
 		if err := rows.Scan(
 			&feature.ID,
 			&feature.Title,
@@ -57,14 +57,14 @@ func (r *FeatureRepository) GetAllFeatures(ctx context.Context) ([]models.Featur
 }
 
 // GetFeatureByID retorna uma feature por ID
-func (r *FeatureRepository) GetFeatureByID(ctx context.Context, featureID uuid.UUID) (*models.Feature, error) {
+func (r *FeatureRepository) GetFeatureByID(ctx context.Context, featureID uuid.UUID) (*admin.Feature, error) {
 	query := `
 		SELECT id, title, slug, code, description, is_active, created_at, updated_at
 		FROM features
 		WHERE id = $1
 	`
 
-	var feature models.Feature
+	var feature admin.Feature
 	err := r.pool.QueryRow(ctx, query, featureID).Scan(
 		&feature.ID,
 		&feature.Title,
@@ -84,14 +84,14 @@ func (r *FeatureRepository) GetFeatureByID(ctx context.Context, featureID uuid.U
 }
 
 // CreateFeature cria uma nova feature
-func (r *FeatureRepository) CreateFeature(ctx context.Context, title, slug, code, description string, isActive bool) (*models.Feature, error) {
+func (r *FeatureRepository) CreateFeature(ctx context.Context, title, slug, code, description string, isActive bool) (*admin.Feature, error) {
 	query := `
 		INSERT INTO features (title, slug, code, description, is_active)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, title, slug, code, description, is_active, created_at, updated_at
 	`
 
-	var feature models.Feature
+	var feature admin.Feature
 	err := r.pool.QueryRow(ctx, query, title, slug, code, description, isActive).Scan(
 		&feature.ID,
 		&feature.Title,
@@ -111,7 +111,7 @@ func (r *FeatureRepository) CreateFeature(ctx context.Context, title, slug, code
 }
 
 // UpdateFeature atualiza uma feature existente
-func (r *FeatureRepository) UpdateFeature(ctx context.Context, featureID uuid.UUID, title, slug, code, description string, isActive bool) (*models.Feature, error) {
+func (r *FeatureRepository) UpdateFeature(ctx context.Context, featureID uuid.UUID, title, slug, code, description string, isActive bool) (*admin.Feature, error) {
 	query := `
 		UPDATE features
 		SET title = $2, slug = $3, code = $4, description = $5, is_active = $6, updated_at = NOW()
@@ -119,7 +119,7 @@ func (r *FeatureRepository) UpdateFeature(ctx context.Context, featureID uuid.UU
 		RETURNING id, title, slug, code, description, is_active, created_at, updated_at
 	`
 
-	var feature models.Feature
+	var feature admin.Feature
 	err := r.pool.QueryRow(ctx, query, featureID, title, slug, code, description, isActive).Scan(
 		&feature.ID,
 		&feature.Title,

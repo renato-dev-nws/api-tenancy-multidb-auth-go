@@ -1,4 +1,4 @@
-package repository
+package admin
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/saas-multi-database-api/internal/models"
+	"github.com/saas-multi-database-api/internal/models/admin"
 )
 
 type PlanRepository struct {
@@ -18,7 +18,7 @@ func NewPlanRepository(pool *pgxpool.Pool) *PlanRepository {
 }
 
 // GetAllPlans retorna todos os planos
-func (r *PlanRepository) GetAllPlans(ctx context.Context) ([]models.Plan, error) {
+func (r *PlanRepository) GetAllPlans(ctx context.Context) ([]admin.Plan, error) {
 	query := `
 		SELECT id, name, description, price, created_at, updated_at
 		FROM plans
@@ -31,9 +31,9 @@ func (r *PlanRepository) GetAllPlans(ctx context.Context) ([]models.Plan, error)
 	}
 	defer rows.Close()
 
-	var plans []models.Plan
+	var plans []admin.Plan
 	for rows.Next() {
-		var plan models.Plan
+		var plan admin.Plan
 		if err := rows.Scan(
 			&plan.ID,
 			&plan.Name,
@@ -55,14 +55,14 @@ func (r *PlanRepository) GetAllPlans(ctx context.Context) ([]models.Plan, error)
 }
 
 // GetPlanByID retorna um plano por ID
-func (r *PlanRepository) GetPlanByID(ctx context.Context, planID uuid.UUID) (*models.Plan, error) {
+func (r *PlanRepository) GetPlanByID(ctx context.Context, planID uuid.UUID) (*admin.Plan, error) {
 	query := `
 		SELECT id, name, description, price, created_at, updated_at
 		FROM plans
 		WHERE id = $1
 	`
 
-	var plan models.Plan
+	var plan admin.Plan
 	err := r.pool.QueryRow(ctx, query, planID).Scan(
 		&plan.ID,
 		&plan.Name,
@@ -80,14 +80,14 @@ func (r *PlanRepository) GetPlanByID(ctx context.Context, planID uuid.UUID) (*mo
 }
 
 // CreatePlan cria um novo plano
-func (r *PlanRepository) CreatePlan(ctx context.Context, name, description string, price float64) (*models.Plan, error) {
+func (r *PlanRepository) CreatePlan(ctx context.Context, name, description string, price float64) (*admin.Plan, error) {
 	query := `
 		INSERT INTO plans (name, description, price)
 		VALUES ($1, $2, $3)
 		RETURNING id, name, description, price, created_at, updated_at
 	`
 
-	var plan models.Plan
+	var plan admin.Plan
 	err := r.pool.QueryRow(ctx, query, name, description, price).Scan(
 		&plan.ID,
 		&plan.Name,
@@ -105,7 +105,7 @@ func (r *PlanRepository) CreatePlan(ctx context.Context, name, description strin
 }
 
 // UpdatePlan atualiza um plano existente
-func (r *PlanRepository) UpdatePlan(ctx context.Context, planID uuid.UUID, name, description string, price float64) (*models.Plan, error) {
+func (r *PlanRepository) UpdatePlan(ctx context.Context, planID uuid.UUID, name, description string, price float64) (*admin.Plan, error) {
 	query := `
 		UPDATE plans
 		SET name = $2, description = $3, price = $4, updated_at = NOW()
@@ -113,7 +113,7 @@ func (r *PlanRepository) UpdatePlan(ctx context.Context, planID uuid.UUID, name,
 		RETURNING id, name, description, price, created_at, updated_at
 	`
 
-	var plan models.Plan
+	var plan admin.Plan
 	err := r.pool.QueryRow(ctx, query, planID, name, description, price).Scan(
 		&plan.ID,
 		&plan.Name,
@@ -164,7 +164,7 @@ func (r *PlanRepository) DeletePlan(ctx context.Context, planID uuid.UUID) error
 }
 
 // GetPlanFeatures retorna as features de um plano
-func (r *PlanRepository) GetPlanFeatures(ctx context.Context, planID uuid.UUID) ([]models.Feature, error) {
+func (r *PlanRepository) GetPlanFeatures(ctx context.Context, planID uuid.UUID) ([]admin.Feature, error) {
 	query := `
 		SELECT f.id, f.title, f.slug, f.description, f.created_at, f.updated_at
 		FROM features f
@@ -179,9 +179,9 @@ func (r *PlanRepository) GetPlanFeatures(ctx context.Context, planID uuid.UUID) 
 	}
 	defer rows.Close()
 
-	var features []models.Feature
+	var features []admin.Feature
 	for rows.Next() {
-		var feature models.Feature
+		var feature admin.Feature
 		if err := rows.Scan(
 			&feature.ID,
 			&feature.Title,
