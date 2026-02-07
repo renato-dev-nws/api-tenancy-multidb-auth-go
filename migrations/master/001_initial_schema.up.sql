@@ -114,6 +114,7 @@ CREATE TABLE tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     db_code UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     url_code VARCHAR(11) UNIQUE NOT NULL,
+    subdomain VARCHAR(50) UNIQUE NOT NULL,
     owner_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Nullable: admin pode criar tenant sem owner
     plan_id UUID NOT NULL REFERENCES plans(id),
     billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',

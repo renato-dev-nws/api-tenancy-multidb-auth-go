@@ -38,8 +38,9 @@ func NewTenantService(
 // CreateTenantRequest representa os dados para criar um tenant
 type CreateTenantRequest struct {
 	Name         string              `json:"name" binding:"required"`
-	URLCode      string              `json:"url_code" binding:"required,min=3,max=50"`
-	OwnerID      *uuid.UUID          `json:"owner_id,omitempty"` // Opcional: pode ser nil quando criado pela Admin API
+	Subdomain    string              `json:"subdomain" binding:"required,min=3,max=50"` // User-chosen for public site
+	URLCode      string              `json:"url_code,omitempty"`                        // Auto-generated if empty (admin routing)
+	OwnerID      *uuid.UUID          `json:"owner_id,omitempty"`                        // Opcional: pode ser nil quando criado pela Admin API
 	PlanID       uuid.UUID           `json:"plan_id" binding:"required"`
 	BillingCycle models.BillingCycle `json:"billing_cycle" binding:"required"`
 	CompanyName  string              `json:"company_name"`
@@ -69,19 +70,38 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		}
 	}
 
-	// Normalizar e validar URL code
-	urlCode := utils.NormalizeSlug(req.URLCode)
-	if len(urlCode) < 3 {
-		return nil, fmt.Errorf("url_code muito curto após normalização")
+	// Normalizar e validar subdomain (para site público)
+	subdomain := utils.NormalizeSlug(req.Subdomain)
+	if len(subdomain) < 3 {
+		return nil, fmt.Errorf("subdomain muito curto após normalização")
 	}
-	if len(urlCode) > 11 {
-		return nil, fmt.Errorf("url_code muito longo (máximo 11 caracteres após normalização)")
+	if len(subdomain) > 50 {
+		return nil, fmt.Errorf("subdomain muito longo (máximo 50 caracteres)")
 	}
 
-	// Verificar se URL code já existe
-	existing, _ := s.repo.GetTenantByURLCode(ctx, urlCode)
-	if existing != nil {
-		return nil, fmt.Errorf("url_code já está em uso")
+	// Verificar se subdomain já existe
+	existingSubdomain, _ := s.repo.GetTenantBySubdomain(ctx, subdomain)
+	if existingSubdomain != nil {
+		return nil, fmt.Errorf("subdomain já está em uso")
+	}
+
+	// Gerar url_code automaticamente (para admin panel)
+	// Se foi fornecido (Admin API), usar; senão gerar
+	urlCode := req.URLCode
+	if urlCode == "" {
+		urlCode = utils.GenerateURLCode()
+	}
+
+	// Verificar se URL code já existe (garantir unicidade)
+	for attempts := 0; attempts < 10; attempts++ {
+		existing, _ := s.repo.GetTenantByURLCode(ctx, urlCode)
+		if existing == nil {
+			break // Code is unique
+		}
+		urlCode = utils.GenerateURLCode() // Regenerate if collision
+		if attempts == 9 {
+			return nil, fmt.Errorf("falha ao gerar url_code único após 10 tentativas")
+		}
 	}
 
 	// Gerar IDs e códigos
@@ -90,9 +110,9 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 
 	// Criar tenant no Master DB com status 'provisioning'
 	query := `
-		INSERT INTO tenants (id, db_code, url_code, owner_id, plan_id, billing_cycle, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, db_code, url_code, owner_id, plan_id, billing_cycle, status, created_at, updated_at
+		INSERT INTO tenants (id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at
 	`
 
 	now := time.Now()
@@ -104,6 +124,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		tenantID,
 		dbCode,
 		urlCode,
+		subdomain,
 		req.OwnerID,
 		req.PlanID,
 		req.BillingCycle,
@@ -114,6 +135,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, req CreateTenantReques
 		&tenant.ID,
 		&tenant.DBCode,
 		&tenant.URLCode,
+		&tenant.Subdomain,
 		&tenant.OwnerID,
 		&tenant.PlanID,
 		&tenant.BillingCycle,

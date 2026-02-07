@@ -26,7 +26,8 @@ type UserProfile struct {
 type Tenant struct {
 	ID           uuid.UUID    `json:"id"`
 	DBCode       uuid.UUID    `json:"db_code"`
-	URLCode      string       `json:"url_code"`
+	URLCode      string       `json:"url_code"`           // Auto-generated 11-char code for admin routing (ex: FR34JJO390G)
+	Subdomain    string       `json:"subdomain"`          // User-chosen subdomain for public site (ex: joao.meusaas.app)
 	OwnerID      *uuid.UUID   `json:"owner_id,omitempty"` // Nullable: tenant pode ser criado sem owner pela Admin API
 	PlanID       uuid.UUID    `json:"plan_id"`
 	BillingCycle BillingCycle `json:"billing_cycle"`
@@ -151,10 +152,11 @@ type TenantLoginResponse struct {
 }
 
 type UserTenant struct {
-	ID      uuid.UUID `json:"id"`
-	URLCode string    `json:"url_code"`
-	Name    string    `json:"name,omitempty"`
-	Role    string    `json:"role,omitempty"`
+	ID        uuid.UUID `json:"id"`
+	URLCode   string    `json:"url_code"`  // For admin panel: meusaas.app/adm/{url_code}/dashboard
+	Subdomain string    `json:"subdomain"` // For public site: {subdomain}.meusaas.app
+	Name      string    `json:"name,omitempty"`
+	Role      string    `json:"role,omitempty"`
 }
 
 type TenantConfigResponse struct {
@@ -168,8 +170,8 @@ type SubscriptionRequest struct {
 	BillingCycle BillingCycle `json:"billing_cycle" binding:"required"`
 	Name         string       `json:"name" binding:"required"`
 	IsCompany    bool         `json:"is_company"`
-	CompanyName  string       `json:"company_name,omitempty"` // Se não for empresa, usar Name
-	Subdomain    string       `json:"subdomain" binding:"required,min=3,max=11"`
+	CompanyName  string       `json:"company_name,omitempty"`                    // Se não for empresa, usar Name
+	Subdomain    string       `json:"subdomain" binding:"required,min=3,max=50"` // For public site (ex: joao.meusaas.app)
 	Email        string       `json:"email" binding:"required,email"`
 	Password     string       `json:"password" binding:"required,min=8"`
 	CustomDomain string       `json:"custom_domain,omitempty"` // Domínio customizado opcional

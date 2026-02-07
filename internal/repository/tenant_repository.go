@@ -23,7 +23,7 @@ func (r *TenantRepository) GetTenantByURLCode(ctx context.Context, urlCode strin
 	tenant := &models.Tenant{}
 
 	query := `
-		SELECT id, db_code, url_code, owner_id, plan_id, status, created_at, updated_at
+		SELECT id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at
 		FROM tenants
 		WHERE url_code = $1
 	`
@@ -32,8 +32,40 @@ func (r *TenantRepository) GetTenantByURLCode(ctx context.Context, urlCode strin
 		&tenant.ID,
 		&tenant.DBCode,
 		&tenant.URLCode,
+		&tenant.Subdomain,
 		&tenant.OwnerID,
 		&tenant.PlanID,
+		&tenant.BillingCycle,
+		&tenant.Status,
+		&tenant.CreatedAt,
+		&tenant.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+
+	return tenant, nil
+}
+
+// GetTenantBySubdomain retrieves a tenant by subdomain (public site routing)
+func (r *TenantRepository) GetTenantBySubdomain(ctx context.Context, subdomain string) (*models.Tenant, error) {
+	tenant := &models.Tenant{}
+
+	query := `
+		SELECT id, db_code, url_code, subdomain, owner_id, plan_id, billing_cycle, status, created_at, updated_at
+		FROM tenants
+		WHERE subdomain = $1
+	`
+
+	err := r.pool.QueryRow(ctx, query, subdomain).Scan(
+		&tenant.ID,
+		&tenant.DBCode,
+		&tenant.URLCode,
+		&tenant.Subdomain,
+		&tenant.OwnerID,
+		&tenant.PlanID,
+		&tenant.BillingCycle,
 		&tenant.Status,
 		&tenant.CreatedAt,
 		&tenant.UpdatedAt,
@@ -136,6 +168,7 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 		SELECT DISTINCT 
 			t.id,
 			t.url_code,
+			t.subdomain,
 			COALESCE(tp.custom_settings->>'name', '') as name,
 			r.slug as role,
 			t.created_at
@@ -158,7 +191,7 @@ func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID)
 		var tenant models.UserTenant
 		var name, role *string
 		var createdAt time.Time // Dummy variable to ignore in scan
-		if err := rows.Scan(&tenant.ID, &tenant.URLCode, &name, &role, &createdAt); err != nil {
+		if err := rows.Scan(&tenant.ID, &tenant.URLCode, &tenant.Subdomain, &name, &role, &createdAt); err != nil {
 			return nil, fmt.Errorf("failed to scan tenant: %w", err)
 		}
 		if name != nil {

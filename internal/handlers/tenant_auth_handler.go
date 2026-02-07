@@ -262,7 +262,8 @@ func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
 	// Criar tenant com o usuário como owner
 	tenantReq := services.CreateTenantRequest{
 		Name:         req.Name,
-		URLCode:      req.Subdomain,
+		Subdomain:    req.Subdomain, // User-chosen subdomain for public site (joao.meusaas.app)
+		URLCode:      "",            // Auto-generate admin URL code (ex: FR34JJO390G)
 		OwnerID:      &user.ID,
 		PlanID:       req.PlanID,
 		BillingCycle: req.BillingCycle,
