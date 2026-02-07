@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -88,7 +89,7 @@ func (h *TenantAuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// Login authenticates a tenant user and updates last_tenant_logged
+// Login authenticates a tenant user and returns last_tenant_id config
 func (h *TenantAuthHandler) Login(c *gin.Context) {
 	var req tenantModels.LoginRequest
 
@@ -138,50 +139,114 @@ func (h *TenantAuthHandler) Login(c *gin.Context) {
 		tenants = []tenantModels.UserTenant{}
 	}
 
-	// Build response
-	response := tenantModels.TenantLoginResponse{
+	// Build base response
+	response := tenantModels.LoginResponse{
 		Token: token,
 	}
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = profile.FullName
 	response.Tenants = tenants
-	response.LastTenantLogged = user.LastTenantLogged
+
+	// If user has last_tenant_logged, fetch and return tenant config
+	if user.LastTenantLogged != nil && *user.LastTenantLogged != "" {
+		urlCode := *user.LastTenantLogged
+
+		// Get tenant by url_code
+		tenant, err := h.tenantRepo.GetTenantByURLCode(c.Request.Context(), urlCode)
+		if err == nil && tenant.Status == "active" {
+			// Verify user still has access to this tenant
+			hasAccess := false
+			for _, t := range adminTenants {
+				if t.URLCode == urlCode {
+					hasAccess = true
+					break
+				}
+			}
+
+			if hasAccess {
+				// Get tenant profile/layout config first (needed for company name)
+				tenantProfile, err := h.tenantRepo.GetTenantProfile(c.Request.Context(), tenant.ID)
+				companyName := ""
+				if err == nil {
+					companyName = tenantProfile.CompanyName
+				}
+
+				// Set current tenant
+				response.CurrentTenant = &tenantModels.CurrentTenant{
+					ID:        tenant.ID,
+					URLCode:   tenant.URLCode,
+					Subdomain: tenant.Subdomain,
+					Name:      companyName,
+				}
+
+				// Get tenant features
+				features, err := h.tenantRepo.GetTenantFeatures(c.Request.Context(), tenant.ID)
+				if err == nil {
+					response.Features = features
+				} else {
+					response.Features = []string{}
+				}
+
+				// Get user permissions for this tenant
+				permissions, err := h.tenantRepo.GetUserPermissions(c.Request.Context(), user.ID, tenant.ID)
+				if err == nil {
+					response.Permissions = permissions
+				} else {
+					response.Permissions = []string{}
+				}
+
+				// Set interface config
+				if tenantProfile != nil {
+					response.Interface = &tenantModels.TenantConfig{
+						LogoURL:        tenantProfile.LogoURL,
+						CompanyName:    tenantProfile.CompanyName,
+						CustomSettings: tenantProfile.CustomSettings,
+					}
+				} else {
+					// Default empty config
+					response.Interface = &tenantModels.TenantConfig{
+						CustomSettings: make(map[string]interface{}),
+					}
+				}
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-// LoginToTenant authenticates user and updates last_tenant_logged field
-// This endpoint is called when user selects a tenant from the list
-func (h *TenantAuthHandler) LoginToTenant(c *gin.Context) {
-	urlCode := c.Param("url_code")
+// SwitchTenant troca o tenant ativo do usuário
+func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
+	var req tenantModels.SwitchTenantRequest
 
-	// Validate that user is authenticated
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get authenticated user
 	userID := c.MustGet("user_id").(string)
 	parsedUserID := mustParseUUID(userID)
 
-	// Get tenant_id from context (injected by TenantMiddleware)
-	tenantIDStr, exists := c.Get("tenant_id")
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "tenant context not found"})
+	// Get tenant by url_code
+	tenant, err := h.tenantRepo.GetTenantByURLCode(c.Request.Context(), req.URLCode)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "tenant not found"})
 		return
 	}
-	tenantID := mustParseUUID(tenantIDStr.(string))
+
+	// Verify tenant is active
+	if tenant.Status != "active" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "tenant is not active"})
+		return
+	}
 
 	// Verify user has access to this tenant
-	tenants, err := h.tenantRepo.GetUserTenants(c.Request.Context(), parsedUserID)
+	hasAccess, err := h.tenantRepo.CheckUserAccess(c.Request.Context(), parsedUserID, tenant.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user tenants"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify access"})
 		return
-	}
-
-	// Check if url_code exists in user's tenants
-	hasAccess := false
-	for _, t := range tenants {
-		if t.URLCode == urlCode {
-			hasAccess = true
-			break
-		}
 	}
 
 	if !hasAccess {
@@ -190,35 +255,52 @@ func (h *TenantAuthHandler) LoginToTenant(c *gin.Context) {
 	}
 
 	// Update last_tenant_logged
-	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), parsedUserID, urlCode); err != nil {
+	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), parsedUserID, req.URLCode); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update last tenant logged"})
 		return
 	}
 
-	// Get tenant features and user permissions (injected by TenantMiddleware)
-	features := c.MustGet("features").([]string)
-	permissions := c.MustGet("permissions").([]string)
-
-	// Get tenant profile for layout configuration
-	tenantProfile, err := h.tenantRepo.GetTenantProfile(c.Request.Context(), tenantID)
+	// Get tenant features
+	features, err := h.tenantRepo.GetTenantFeatures(c.Request.Context(), tenant.ID)
 	if err != nil {
-		// If no profile found, use empty config (not a critical error)
-		tenantProfile = &adminModels.TenantProfile{
+		features = []string{}
+	}
+
+	// Get user permissions for this tenant
+	permissions, err := h.tenantRepo.GetUserPermissions(c.Request.Context(), parsedUserID, tenant.ID)
+	if err != nil {
+		permissions = []string{}
+	}
+
+	// Get tenant profile/layout config
+	tenantProfile, err := h.tenantRepo.GetTenantProfile(c.Request.Context(), tenant.ID)
+	var config tenantModels.TenantConfig
+	var companyName string
+	if err == nil {
+		config = tenantModels.TenantConfig{
+			LogoURL:        tenantProfile.LogoURL,
+			CompanyName:    tenantProfile.CompanyName,
+			CustomSettings: tenantProfile.CustomSettings,
+		}
+		companyName = tenantProfile.CompanyName
+	} else {
+		config = tenantModels.TenantConfig{
 			CustomSettings: make(map[string]interface{}),
 		}
 	}
 
-	// Return complete configuration for frontend
-	response := tenantModels.LoginToTenantResponse{
-		Message:          "login successful",
-		LastTenantLogged: urlCode,
-		Features:         features,
-		Permissions:      permissions,
-		Config: tenantModels.TenantConfig{
-			LogoURL:        tenantProfile.LogoURL,
-			CompanyName:    tenantProfile.CompanyName,
-			CustomSettings: tenantProfile.CustomSettings,
+	// Build response
+	response := tenantModels.SwitchTenantResponse{
+		Message: "tenant switched successfully",
+		CurrentTenant: tenantModels.CurrentTenant{
+			ID:        tenant.ID,
+			URLCode:   tenant.URLCode,
+			Subdomain: tenant.Subdomain,
+			Name:      companyName,
 		},
+		Interface:   config,
+		Features:    features,
+		Permissions: permissions,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -320,6 +402,12 @@ func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
+	// Atualizar last_tenant_logged do usuário para o tenant recém-criado
+	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), user.ID, tenant.URLCode); err != nil {
+		// Não é crítico se falhar, apenas loga
+		log.Printf("Warning: Failed to update last_tenant_logged for user %s: %v", user.ID, err)
+	}
+
 	// Gerar JWT para o usuário
 	token, err := utils.GenerateTenantJWT(user.ID, h.cfg)
 	if err != nil {
@@ -327,17 +415,49 @@ func (h *TenantAuthHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	// Retornar resposta completa
+	// Get tenant features
+	features, err := h.tenantRepo.GetTenantFeatures(c.Request.Context(), tenant.ID)
+	if err != nil {
+		features = []string{}
+	}
+
+	// Get user permissions (owner has all permissions)
+	permissions, err := h.tenantRepo.GetUserPermissions(c.Request.Context(), user.ID, tenant.ID)
+	if err != nil {
+		permissions = []string{}
+	}
+
+	// Get tenant profile for interface config
+	tenantProfile, err := h.tenantRepo.GetTenantProfile(c.Request.Context(), tenant.ID)
+	var interfaceConfig tenantModels.TenantConfig
+	if err == nil {
+		interfaceConfig = tenantModels.TenantConfig{
+			LogoURL:        tenantProfile.LogoURL,
+			CompanyName:    tenantProfile.CompanyName,
+			CustomSettings: tenantProfile.CustomSettings,
+		}
+	} else {
+		interfaceConfig = tenantModels.TenantConfig{
+			CustomSettings: make(map[string]interface{}),
+		}
+	}
+
+	// Retornar resposta completa com configuração do tenant
 	response := tenantModels.SubscriptionResponse{
 		Token: token,
+		CurrentTenant: tenantModels.CurrentTenant{
+			ID:        tenant.ID,
+			URLCode:   tenant.URLCode,
+			Subdomain: tenant.Subdomain,
+			Name:      req.CompanyName,
+		},
+		Interface:   interfaceConfig,
+		Features:    features,
+		Permissions: permissions,
 	}
 	response.User.ID = user.ID
 	response.User.Email = user.Email
 	response.User.FullName = userProfile.FullName
-	response.Tenant.ID = tenant.ID
-	response.Tenant.URLCode = tenant.URLCode
-	response.Tenant.Subdomain = tenant.Subdomain
-	response.Tenant.Name = req.Name // Use request name as tenant hasn't got a name field
 
 	c.JSON(http.StatusCreated, response)
 }

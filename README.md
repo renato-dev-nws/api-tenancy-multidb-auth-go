@@ -6,6 +6,9 @@ API SaaS escalável em Go com isolamento de dados por banco físico (database-pe
 
 - **Database-per-Tenant**: Cada tenant possui seu próprio banco de dados físico para completo isolamento de dados
 - **Control Plane**: Banco Master centralizado para gerenciamento de usuários, tenants, planos e RBAC
+- **Login Inteligente**: Sistema de autenticação que retorna configuração completa do tenant em uma única chamada
+- **Interface Dinâmica**: Frontend recebe layout, features e permissões automaticamente
+- **Tenant Switching**: Troca de tenant sem novo login, apenas atualizando configurações
 - **Feature-Based Plans**: Sistema de planos com features dinâmicas (módulos habilitáveis)
 - **RBAC**: Controle de acesso baseado em roles e permissões
 - **Dual Routing**: Subdomain para site público + URL code para admin panel
@@ -187,10 +190,10 @@ make migrate             # Aplicar migrations Master DB
 make seed                # Criar admin user
 
 # Testing
-make test-admin-login    # Testar login Admin API
-make test-tenant-login   # Testar login Tenant API
-make test-tenant         # Criar tenant via Admin API
 make test-subscription   # Testar cadastro público
+make test-login          # Testar login (retorna interface)
+make test-switch-tenant  # Testar troca de tenant ativo
+make test-plans-list     # Testar listagem de planos (Admin API)
 
 # Utilities
 make clean               # Limpar volumes e rebuild
@@ -229,17 +232,22 @@ Response:
 ```json
 {
   "token": "eyJhbGc...",
-  "user": {
-    "id": "e95b2979-e1c6-4ded-8a36-3340f78ff931",
-    "email": "joao@teste.com"
-  },
-  "tenant": {
-    "id": "057d0d5c-415f-4bc2-a8fb-2a9bd524076d",
+  "current_tenant": {
+    "id": "tenant-uuid",
     "url_code": "27PCKWWWN3F",
     "subdomain": "joao",
-    "billing_cycle": "monthly",
-    "status": "provisioning"
-  }
+    "name": "Empresa João Silva"
+  },
+  "interface": {
+    "company_name": "Empresa João Silva",
+    "logo_url": "https://cdn.example.com/logo.png",
+    "custom_settings": {
+      "primary_color": "#3B82F6",
+      "theme": "light"
+    }
+  },
+  "features": ["products", "services"],
+  "permissions": ["create_product", "read_product", "update_product", "delete_product"]
 }
 ```
 
@@ -262,17 +270,33 @@ Response:
   "token": "eyJhbGc...",
   "user": {
     "id": "uuid",
-    "email": "joao@teste.com"
+    "email": "joao@teste.com",
+    "full_name": "João Silva"
   },
   "tenants": [
     {
       "id": "tenant-uuid",
       "url_code": "27PCKWWWN3F",
       "subdomain": "joao",
-      "name": "João Silva",
+      "name": "Empresa João Silva",
       "role": "owner"
     }
-  ]
+  ],
+  "current_tenant": {
+    "id": "tenant-uuid",
+    "url_code": "27PCKWWWN3F",
+    "subdomain": "joao",
+    "name": "Empresa João Silva"
+  },
+  "interface": {
+    "company_name": "Empresa João Silva",
+    "custom_settings": {
+      "industry": "",
+      "name": "Empresa João Silva"
+    }
+  },
+  "features": ["products", "services"],
+  "permissions": ["create_product", "read_product", "update_product", "delete_product"]
 }
 ```
 
@@ -284,11 +308,41 @@ GET /api/v1/auth/me
 Authorization: Bearer <token>
 ```
 
+#### Trocar tenant ativo
+```bash
+POST /api/v1/auth/switch-tenant
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "url_code": "27PCKWWWN3F"
+}
+```
+
+Response:
+```json
+{
+  "message": "tenant switched successfully",
+  "current_tenant": {
+    "id": "tenant-uuid",
+    "url_code": "27PCKWWWN3F",
+    "subdomain": "joao",
+    "name": "Empresa João Silva"
+  },
+  "interface": {
+    "company_name": "Empresa João Silva",
+    "custom_settings": {}
+  },
+  "features": ["products", "services"],
+  "permissions": ["create_product", "read_product"]
+}
+```
+
 ### Rotas de Tenant (Requer Autenticação + Tenant Access)
 
 #### Obter configuração do tenant (para frontend)
 ```bash
-GET /api/v1/adm/:url_code/config
+GET /api/v1/:url_code/config
 Authorization: Bearer <token>
 ```
 
@@ -296,18 +350,23 @@ Response:
 ```json
 {
   "features": ["products", "services"],
-  "permissions": ["create_product", "read_product", "update_product"]
+  "permissions": ["create_product", "read_product", "update_product"],
+  "config": {
+    "logo_url": "https://cdn.example.com/logo.png",
+    "company_name": "Empresa João Silva",
+    "custom_settings": {}
+  }
 }
 ```
 
 #### Produtos (requer feature 'products')
 ```bash
 # Listar produtos
-GET /api/v1/adm/:url_code/products
+GET /api/v1/:url_code/products
 Authorization: Bearer <token>
 
 # Criar produto (requer permissão 'create_product')
-POST /api/v1/adm/:url_code/products
+POST /api/v1/:url_code/products
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -320,11 +379,11 @@ Content-Type: application/json
 #### Serviços (requer feature 'services')
 ```bash
 # Listar serviços
-GET /api/v1/adm/:url_code/services
+GET /api/v1/:url_code/services
 Authorization: Bearer <token>
 
 # Criar serviço (requer permissão 'create_service')
-POST /api/v1/adm/:url_code/services
+POST /api/v1/:url_code/services
 Authorization: Bearer <token>
 ```
 
@@ -333,13 +392,14 @@ Authorization: Bearer <token>
 | Método | Endpoint | Auth | Descrição |
 |--------|----------|------|-----------|
 | `POST` | `/api/v1/subscription` | ❌ Público | Cadastro de novo assinante |
-| `POST` | `/api/v1/auth/login` | ❌ Público | Login tenant |
+| `POST` | `/api/v1/auth/login` | ❌ Público | Login tenant (retorna interface) |
+| `POST` | `/api/v1/auth/switch-tenant` | ✅ JWT | Trocar tenant ativo |
 | `GET` | `/api/v1/auth/me` | ✅ JWT | Dados do usuário logado |
-| `GET` | `/api/v1/adm/:url_code/config` | ✅ JWT + Tenant | Config do frontend |
-| `GET` | `/api/v1/adm/:url_code/products` | ✅ JWT + Feature | Listar produtos |
-| `POST` | `/api/v1/adm/:url_code/products` | ✅ JWT + Permission | Criar produto |
-| `GET` | `/api/v1/adm/:url_code/services` | ✅ JWT + Feature | Listar serviços |
-| `POST` | `/api/v1/adm/:url_code/services` | ✅ JWT + Permission | Criar serviço |
+| `GET` | `/api/v1/:url_code/config` | ✅ JWT + Tenant | Config do frontend |
+| `GET` | `/api/v1/:url_code/products` | ✅ JWT + Feature | Listar produtos |
+| `POST` | `/api/v1/:url_code/products` | ✅ JWT + Permission | Criar produto |
+| `GET` | `/api/v1/:url_code/services` | ✅ JWT + Feature | Listar serviços |
+| `POST` | `/api/v1/:url_code/services` | ✅ JWT + Permission | Criar serviço |
 | `POST` | `/api/v1/admin/login` | ❌ Público | Login admin (porta 8080) |
 | `POST` | `/api/v1/admin/tenants` | ✅ Admin JWT | Criar tenant (admin) |
 
@@ -351,37 +411,65 @@ Authorization: Bearer <token>
 
 ## 🔐 Fluxo de Autenticação e Autorização
 
-### 1. Autenticação (Auth Middleware)
+### 1. Login Direto com Interface
 ```
-Cliente → Header: "Authorization: Bearer <token>"
+Cliente → POST /api/v1/auth/login {email, password}
     ↓
-Validação JWT
+Validação credenciais
     ↓
-Context: user_id, user_email
+Busca last_tenant_logged do usuário
+    ↓
+Se tem tenant ativo:
+  │
+  ├─ Busca configuração do tenant
+  ├─ Busca features do plano
+  ├─ Busca permissions do usuário
+  └─ Busca interface/layout config
+    ↓
+Retorna: {
+  token, user, tenants[],
+  current_tenant, interface,
+  features[], permissions[]
+}
 ```
 
-### 2. Resolução de Tenant (Tenant Middleware)
+### 2. Troca de Tenant (Switch)
 ```
-Rota: /api/v1/adm/:url_code/...
+Cliente → POST /api/v1/auth/switch-tenant {url_code}
     ↓
-Extrai url_code do parâmetro
+Auth Middleware → Valida JWT
     ↓
-Busca db_code no Redis (cache)
+Verifica acesso do usuário ao tenant
     ↓
-Se não encontrado → Query Master DB
+Atualiza last_tenant_logged
     ↓
-Verifica acesso do usuário (tenant_members)
+Busca nova configuração:
+  ├─ Features do novo tenant
+  ├─ Permissions do usuário
+  └─ Interface/layout config
     ↓
-Busca features do plano
+Retorna nova configuração completa
+```
+
+### 3. Rotas de Tenant (Resolução Automática)
+```
+Rota: /api/v1/:url_code/...
     ↓
-Busca permissions do usuário
+Auth Middleware → Valida JWT
     ↓
-Cria/recupera pool do banco tenant
+Tenant Middleware:
+  ├─ Extrai url_code do parâmetro
+  ├─ Busca db_code no Redis (cache)
+  ├─ Se não encontrado → Query Master DB
+  ├─ Verifica acesso do usuário (tenant_members)
+  ├─ Busca features do plano
+  ├─ Busca permissions do usuário
+  └─ Cria/recupera pool do banco tenant
     ↓
 Context: tenant_id, tenant_pool, features[], permissions[]
 ```
 
-### 3. Autorização
+### 4. Autorização
 ```
 Feature Check → middleware.RequireFeature("products")
     ↓
@@ -452,7 +540,7 @@ docker exec saas-postgres psql -U postgres -d master_db \
   -c "SELECT url_code, subdomain, billing_cycle, status FROM tenants;"
 ```
 
-### 3. Fazer login
+### 3. Fazer login e receber configuração completa
 ```bash
 curl -X POST http://localhost:8081/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -462,9 +550,28 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
   }'
 ```
 
-### 4. Acessar admin panel (com token)
+**Response inclui**:
+- `current_tenant`: Tenant ativo (baseado em last_tenant_logged)
+- `interface`: Configuração de layout (logo, company_name, custom_settings)
+- `features`: Features disponíveis no plano ["products", "services"]
+- `permissions`: Permissões do usuário no tenant
+
+### 4. Trocar de tenant (se usuário tiver múltiplos)
 ```bash
-curl http://localhost:8081/api/v1/adm/27PCKWWWN3F/config \
+TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"joao@teste.com","password":"senha12345"}' | \
+  grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+curl -X POST http://localhost:8081/api/v1/auth/switch-tenant \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"url_code":"OUTRO_TENANT"}'
+```
+
+### 5. Acessar rotas do tenant (com token)
+```bash
+curl http://localhost:8081/api/v1/27PCKWWWN3F/config \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -508,20 +615,50 @@ func GenerateURLCode() string {
 │   ├── cache/            # Cliente Redis
 │   ├── config/           # Configurações
 │   ├── database/         # Gerenciador de pools
-│   ├── handlers/         # HTTP handlers
-│   ├── middleware/       # Middlewares (Auth, Tenant)
-│   ├── models/           # Modelos de dados
-│   ├── repository/       # Camada de acesso a dados
-│   ├── services/         # Lógica de negócio
+│   ├── handlers/
+│   │   ├── admin/        # Handlers do Control Plane
+│   │   └── tenant/       # Handlers do Data Plane
+│   ├── middleware/       # Middlewares (Auth, Tenant, Features)
+│   ├── models/
+│   │   ├── admin/        # Models para Control Plane
+│   │   ├── tenant/       # DTOs para Data Plane
+│   │   └── shared/       # Enums compartilhados
+│   ├── repository/
+│   │   └── admin/        # Acesso a dados do Master DB
+│   ├── services/
+│   │   └── admin/        # Lógica de negócio Control Plane
 │   └── utils/            # Utilitários (JWT, hash, code generator)
 ├── migrations/
 │   ├── master/           # Migrations Master DB
 │   └── tenant/           # Migrations Tenant DB
 ├── config/
 │   └── pgbouncer/        # Configuração PgBouncer
+├── docs/
+│   └── AUTH_FLOW.md      # Documentação detalhada do fluxo
+├── scripts/              # Scripts utilitários
 ├── docker-compose.yml
 ├── Makefile
 └── README.md
+```
+
+### 🏢 Separação por Domínio
+
+**Control Plane (Admin)**: Gerenciamento de tenants, usuários, planos  
+**Data Plane (Tenant)**: Operações dentro dos tenants isolados
+
+```go
+// Handlers organizados por domínio
+internal/handlers/admin/    → users_handler.go, plans_handler.go
+internal/handlers/tenant/   → auth_handler.go, products_handler.go
+
+// Models separados por responsabilidade
+internal/models/admin/      → Entidades do Master DB
+internal/models/tenant/     → DTOs para comunicação
+internal/models/shared/     → Enums compartilhados
+
+// Repositórios focados
+internal/repository/admin/  → Acesso exclusivo ao Master DB
+// internal/repository/tenant/ → (futuro) Acesso aos bancos tenant
 ```
 
 ## 🔄 Provisionamento de Tenant
@@ -548,10 +685,16 @@ make logs-worker
 - [x] Sistema de subscription público
 - [x] Geração automática de url_code
 - [x] Suporte a billing cycles
-- [ ] Implementar Admin API completa
-- [ ] Adicionar endpoints de gerenciamento de tenants
-- [ ] Implementar handlers completos de Products/Services
-- [ ] Adicionar testes unitários e de integração
+- [x] Reorganização da estrutura de diretórios por domínio
+- [x] **Novo fluxo de autenticação com interface direta**
+- [x] **Login retorna configuração completa do tenant**
+- [x] **Endpoint de troca de tenant (switch-tenant)**
+- [ ] Implementar CRUD completo de Produtos (Tenant DB)
+- [ ] Implementar CRUD completo de Serviços (Tenant DB)
+- [ ] Sistema de upload e gerenciamento de imagens
+- [ ] Worker de processamento de imagens (resize, WebP)
+- [ ] Configuração para múltiplos providers (Local/S3/R2)
+- [ ] Admin API completa para gerenciamento de tenants
 - [ ] Implementar rate limiting
 - [ ] Adicionar logging estruturado
 - [ ] Implementar métricas e observabilidade

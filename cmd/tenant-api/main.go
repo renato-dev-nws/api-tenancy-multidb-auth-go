@@ -127,6 +127,7 @@ func setupTenantRouter(
 	protected.Use(middleware.TenantAuthMiddleware(cfg))
 	{
 		protected.GET("/auth/me", authHandler.GetMe)
+		protected.POST("/auth/switch-tenant", authHandler.SwitchTenant) // Nova rota de troca de tenant
 		protected.GET("/tenants", func(c *gin.Context) {
 			userIDStr, _ := c.Get("user_id")
 			userID, _ := uuid.Parse(userIDStr.(string))
@@ -140,9 +141,6 @@ func setupTenantRouter(
 	tenant.Use(middleware.TenantAuthMiddleware(cfg))
 	tenant.Use(middleware.TenantMiddleware(dbManager, redisClient, tenantRepo))
 	{
-		// Auth endpoint to update last_tenant_logged
-		tenant.POST("/auth/login-to-tenant", authHandler.LoginToTenant)
-
 		// Tenant configuration endpoint for frontend
 		tenant.GET("/config", func(c *gin.Context) {
 			features := c.MustGet("features").([]string)

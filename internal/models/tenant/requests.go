@@ -25,8 +25,19 @@ type LoginResponse struct {
 		Email    string    `json:"email"`
 		FullName string    `json:"full_name"`
 	} `json:"user"`
-	Tenants          []UserTenant `json:"tenants"`
-	LastTenantLogged *string      `json:"last_tenant_logged,omitempty"`
+	Tenants       []UserTenant   `json:"tenants"`
+	CurrentTenant *CurrentTenant `json:"current_tenant,omitempty"` // Tenant ativo (last_tenant_id)
+	Interface     *TenantConfig  `json:"interface,omitempty"`      // Configuração de layout
+	Features      []string       `json:"features,omitempty"`       // Features disponíveis
+	Permissions   []string       `json:"permissions,omitempty"`    // Permissões do usuário
+}
+
+// CurrentTenant representa o tenant atualmente ativo
+type CurrentTenant struct {
+	ID        uuid.UUID `json:"id"`
+	URLCode   string    `json:"url_code"`
+	Subdomain string    `json:"subdomain"`
+	Name      string    `json:"name"`
 }
 
 type UserTenant struct {
@@ -48,13 +59,18 @@ type TenantLoginResponse struct {
 	LastTenantLogged *string      `json:"last_tenant_logged,omitempty"`
 }
 
-// LoginToTenantResponse retorna dados completos após login em tenant específico
-type LoginToTenantResponse struct {
-	Message          string       `json:"message"`
-	LastTenantLogged string       `json:"last_tenant_logged"`
-	Features         []string     `json:"features"`
-	Permissions      []string     `json:"permissions"`
-	Config           TenantConfig `json:"config"`
+// SwitchTenantRequest para trocar de tenant ativo
+type SwitchTenantRequest struct {
+	URLCode string `json:"url_code" binding:"required"`
+}
+
+// SwitchTenantResponse retorna dados do novo tenant ativo
+type SwitchTenantResponse struct {
+	Message       string        `json:"message"`
+	CurrentTenant CurrentTenant `json:"current_tenant"`
+	Interface     TenantConfig  `json:"interface"`
+	Features      []string      `json:"features"`
+	Permissions   []string      `json:"permissions"`
 }
 
 // TenantConfig contém configurações de layout do tenant para o frontend
@@ -94,10 +110,8 @@ type SubscriptionResponse struct {
 		Email    string    `json:"email"`
 		FullName string    `json:"full_name"`
 	} `json:"user"`
-	Tenant struct {
-		ID        uuid.UUID `json:"id"`
-		URLCode   string    `json:"url_code"`
-		Subdomain string    `json:"subdomain"`
-		Name      string    `json:"name"`
-	} `json:"tenant"`
+	CurrentTenant CurrentTenant `json:"current_tenant"`
+	Interface     TenantConfig  `json:"interface"`
+	Features      []string      `json:"features"`
+	Permissions   []string      `json:"permissions"`
 }

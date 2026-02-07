@@ -138,15 +138,24 @@ test-subscription:
 		-d '{"plan_id":"33333333-3333-3333-3333-333333333333","billing_cycle":"monthly","name":"Empresa João Silva","subdomain":"joao","full_name":"João Silva","email":"joao@teste.com","password":"senha12345","is_company":false}'
 	@echo ""
 
-# Test login to specific tenant (with features, permissions and config)
-test-login-to-tenant:
-	@echo "Testing login to tenant with complete config..."
+# Test tenant user login (returns complete config of last_tenant_id)
+test-login:
+	@echo "Testing login with interface config..."
+	@curl -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'
+	@echo ""
+
+# Test switching active tenant
+test-switch-tenant:
+	@echo "Testing tenant switch..."
 	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
 		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X POST http://localhost:8081/api/v1/joao/auth/login-to-tenant \
+	curl -X POST http://localhost:8081/api/v1/auth/switch-tenant \
 		-H "Content-Type: application/json" \
-		-H "Authorization: Bearer $$TOKEN"
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"url_code":"joao"}'
 	@echo ""
 
 # Test Admin API - Plans CRUD
