@@ -7,17 +7,24 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	MasterDB DatabaseConfig
-	AdminDB  DatabaseConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	App      AppConfig
+	Server    ServerConfig
+	AdminAPI  APIConfig
+	TenantAPI APIConfig
+	MasterDB  DatabaseConfig
+	AdminDB   DatabaseConfig
+	Redis     RedisConfig
+	JWT       JWTConfig
+	App       AppConfig
 }
 
 type ServerConfig struct {
-	Port    string
+	Port    string // Deprecated: use AdminAPI.Port or TenantAPI.Port
 	GinMode string
+}
+
+type APIConfig struct {
+	Port      string
+	JWTSecret string
 }
 
 type DatabaseConfig struct {
@@ -48,8 +55,16 @@ type AppConfig struct {
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port:    getEnv("PORT", "8080"),
+			Port:    getEnv("PORT", "8080"), // For backward compatibility
 			GinMode: getEnv("GIN_MODE", "debug"),
+		},
+		AdminAPI: APIConfig{
+			Port:      getEnv("ADMIN_API_PORT", "8080"),
+			JWTSecret: getEnv("ADMIN_JWT_SECRET", "admin-super-secret-jwt-key-change-in-production"),
+		},
+		TenantAPI: APIConfig{
+			Port:      getEnv("TENANT_API_PORT", "8081"),
+			JWTSecret: getEnv("TENANT_JWT_SECRET", "tenant-super-secret-jwt-key-change-in-production"),
 		},
 		MasterDB: DatabaseConfig{
 			Host:     getEnv("MASTER_DB_HOST", "localhost"),

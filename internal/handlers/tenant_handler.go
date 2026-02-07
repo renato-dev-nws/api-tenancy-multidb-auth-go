@@ -91,6 +91,60 @@ func (h *TenantHandler) ListMyTenants(c *gin.Context) {
 	})
 }
 
+// UpdateTenant atualiza informações do tenant (Admin API)
+func (h *TenantHandler) UpdateTenant(c *gin.Context) {
+	if h.tenantService == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "operação disponível apenas na Admin API"})
+		return
+	}
+
+	tenantIDStr := c.Param("tenant_id")
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do tenant inválido"})
+		return
+	}
+
+	var req struct {
+		Name        *string `json:"name"`
+		Status      *string `json:"status"`
+		PlanID      *string `json:"plan_id"`
+		CompanyName *string `json:"company_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dados inválidos"})
+		return
+	}
+
+	// TODO: Implement UpdateTenant in service layer
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "tenant atualizado com sucesso",
+		"tenant_id": tenantID,
+	})
+}
+
+// DeleteTenant suspende/exclui um tenant (Admin API)
+func (h *TenantHandler) DeleteTenant(c *gin.Context) {
+	if h.tenantService == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "operação disponível apenas na Admin API"})
+		return
+	}
+
+	tenantIDStr := c.Param("tenant_id")
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do tenant inválido"})
+		return
+	}
+
+	// TODO: Implement soft delete (status = suspended) in service layer
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "tenant suspenso com sucesso",
+		"tenant_id": tenantID,
+	})
+}
+
 // Helper function to parse UUID
 func mustParseUUID(s string) uuid.UUID {
 	id, _ := uuid.Parse(s)

@@ -31,6 +31,7 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 // GenerateJWT gera um token JWT para um usuário
+// Deprecated: Use GenerateAdminJWT or GenerateTenantJWT instead
 func GenerateJWT(userID uuid.UUID, cfg *config.Config) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(cfg.JWT.ExpirationHours) * time.Hour)
 
@@ -51,7 +52,52 @@ func GenerateJWT(userID uuid.UUID, cfg *config.Config) (string, error) {
 	return tokenString, nil
 }
 
+// GenerateAdminJWT gera um token JWT para Admin API (Control Plane)
+func GenerateAdminJWT(userID uuid.UUID, cfg *config.Config) (string, error) {
+	expirationTime := time.Now().Add(time.Duration(cfg.JWT.ExpirationHours) * time.Hour)
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "admin-api",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(cfg.AdminAPI.JWTSecret))
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+// GenerateTenantJWT gera um token JWT para Tenant API (Data Plane)
+func GenerateTenantJWT(userID uuid.UUID, cfg *config.Config) (string, error) {
+	expirationTime := time.Now().Add(time.Duration(cfg.JWT.ExpirationHours) * time.Hour)
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "tenant-api",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(cfg.TenantAPI.JWTSecret))
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
 // ValidateJWT valida um token JWT e retorna os claims
+// Deprecated: Use ValidateAdminJWT or ValidateTenantJWT instead
 func ValidateJWT(tokenString string, cfg *config.Config) (*Claims, error) {
 	claims := &Claims{}
 
@@ -68,6 +114,60 @@ func ValidateJWT(tokenString string, cfg *config.Config) (*Claims, error) {
 
 	if !token.Valid {
 		return nil, fmt.Errorf("invalid token")
+	}
+
+	return claims, nil
+}
+
+// ValidateAdminJWT valida um token JWT do Admin API
+func ValidateAdminJWT(tokenString string, cfg *config.Config) (*Claims, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(cfg.AdminAPI.JWTSecret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	// Validar issuer
+	if claims.Issuer != "admin-api" {
+		return nil, fmt.Errorf("invalid token issuer")
+	}
+
+	return claims, nil
+}
+
+// ValidateTenantJWT valida um token JWT do Tenant API
+func ValidateTenantJWT(tokenString string, cfg *config.Config) (*Claims, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(cfg.TenantAPI.JWTSecret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	// Validar issuer
+	if claims.Issuer != "tenant-api" {
+		return nil, fmt.Errorf("invalid token issuer")
 	}
 
 	return claims, nil

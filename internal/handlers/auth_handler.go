@@ -14,6 +14,7 @@ type AuthHandler struct {
 	userRepo   *repository.UserRepository
 	tenantRepo *repository.TenantRepository
 	cfg        *config.Config
+	apiType    string // "admin" or "tenant"
 }
 
 func NewAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
@@ -21,6 +22,25 @@ func NewAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.
 		userRepo:   userRepo,
 		tenantRepo: tenantRepo,
 		cfg:        cfg,
+		apiType:    "tenant", // default for backward compatibility
+	}
+}
+
+func NewAdminAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{
+		userRepo:   userRepo,
+		tenantRepo: tenantRepo,
+		cfg:        cfg,
+		apiType:    "admin",
+	}
+}
+
+func NewTenantAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.TenantRepository, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{
+		userRepo:   userRepo,
+		tenantRepo: tenantRepo,
+		cfg:        cfg,
+		apiType:    "tenant",
 	}
 }
 
@@ -56,8 +76,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Generate token
-	token, err := utils.GenerateJWT(user.ID, h.cfg)
+	// Generate token based on API type
+	var token string
+	if h.apiType == "admin" {
+		token, err = utils.GenerateAdminJWT(user.ID, h.cfg)
+	} else {
+		token, err = utils.GenerateTenantJWT(user.ID, h.cfg)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
@@ -106,8 +131,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate token
-	token, err := utils.GenerateJWT(user.ID, h.cfg)
+	// Generate token based on API type
+	var token string
+	if h.apiType == "admin" {
+		token, err = utils.GenerateAdminJWT(user.ID, h.cfg)
+	} else {
+		token, err = utils.GenerateTenantJWT(user.ID, h.cfg)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return

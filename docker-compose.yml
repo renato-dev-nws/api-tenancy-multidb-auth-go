@@ -57,14 +57,17 @@ services:
     networks:
       - saas-network
 
-  api:
+  admin-api:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: saas-api
+      dockerfile: Dockerfile.admin-api
+    container_name: saas-admin-api
     environment:
-      PORT: 8080
+      ADMIN_API_PORT: 8080
+      TENANT_API_PORT: 8081
       GIN_MODE: debug
+      ADMIN_JWT_SECRET: admin-super-secret-jwt-key-change-in-production-MUST-BE-DIFFERENT
+      TENANT_JWT_SECRET: tenant-super-secret-jwt-key-change-in-production-MUST-BE-DIFFERENT
       MASTER_DB_HOST: pgbouncer
       MASTER_DB_PORT: 5432
       MASTER_DB_USER: saas_api
@@ -80,7 +83,6 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
       REDIS_DB: 0
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_EXPIRATION_HOURS: 24
       APP_ENV: development
     ports:
@@ -90,10 +92,48 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
     networks:
       - saas-network
+    restart: unless-stopped
+
+  tenant-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.tenant-api
+    container_name: saas-tenant-api
+    environment:
+      ADMIN_API_PORT: 8080
+      TENANT_API_PORT: 8081
+      GIN_MODE: debug
+      ADMIN_JWT_SECRET: admin-super-secret-jwt-key-change-in-production-MUST-BE-DIFFERENT
+      TENANT_JWT_SECRET: tenant-super-secret-jwt-key-change-in-production-MUST-BE-DIFFERENT
+      MASTER_DB_HOST: pgbouncer
+      MASTER_DB_PORT: 5432
+      MASTER_DB_USER: saas_api
+      MASTER_DB_PASSWORD: saas_api_password
+      MASTER_DB_NAME: master_db
+      MASTER_DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: master_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      JWT_EXPIRATION_HOURS: 24
+      APP_ENV: development
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - saas-network
+    restart: unless-stopped
 
   worker:
     build:

@@ -1,4 +1,4 @@
-.PHONY: help setup reset start stop restart logs logs-api logs-worker migrate seed test-login test-tenant clean
+.PHONY: help setup reset start stop restart logs logs-admin logs-tenant logs-worker migrate seed test-admin-login test-tenant-login test-tenant clean
 
 # Default target
 help:
@@ -13,14 +13,16 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make logs            - View all logs (tail -f)"
-	@echo "  make logs-api        - View API logs only"
+	@echo "  make logs-admin      - View Admin API logs only"
+	@echo "  make logs-tenant     - View Tenant API logs only"
 	@echo "  make logs-worker     - View Worker logs only"
 	@echo "  make migrate         - Apply Master DB migrations"
 	@echo "  make seed            - Create admin user (admin@teste.com / admin123)"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test-login      - Test login with admin user"
-	@echo "  make test-tenant     - Create test tenant (url_code: teste)"
+	@echo "  make test-admin-login   - Test Admin API login"
+	@echo "  make test-tenant-login  - Test Tenant API login"
+	@echo "  make test-tenant        - Create test tenant via Admin API"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean           - Clean volumes and rebuild"
@@ -75,9 +77,13 @@ restart:
 logs:
 	@docker compose logs -f
 
-# View API logs only
-logs-api:
-	@docker compose logs -f api
+# View Admin API logs only
+logs-admin:
+	@docker compose logs -f admin-api
+
+# View Tenant API logs only
+logs-tenant:
+	@docker compose logs -f tenant-api
 
 # View Worker logs only
 logs-worker:
@@ -90,27 +96,39 @@ migrate:
 # Create admin user (idempotent)
 seed:
 	@docker exec saas-postgres psql -U postgres -d master_db -c "DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@teste.com');" > /dev/null 2>&1 || true
-	@docker exec saas-postgres psql -U postgres -d master_db -c "DELETE FROM users WHERE email = 'admin@teste.com');" > /dev/null 2>&1 || true
+	@docker exec saas-postgres psql -U postgres -d master_db -c "DELETE FROM users WHERE email = 'admin@teste.com';" > /dev/null 2>&1 || true
 	@docker exec saas-postgres psql -U postgres -d master_db -c "INSERT INTO users (email, password_hash) VALUES ('admin@teste.com', '\$$2a\$$10\$$AlfQHB81zVpyRCL8x4NTeurxmM9skCihPZiACtivFcKV2hAiRy8M.');" > /dev/null
 	@docker exec saas-postgres psql -U postgres -d master_db -c "INSERT INTO user_profiles (user_id, full_name) SELECT id, 'Admin User' FROM users WHERE email = 'admin@teste.com';" > /dev/null
 	@echo "Admin user ready: admin@teste.com / admin123"
 
-# Test login
-test-login:
-	@curl -X POST http://localhost:8080/api/v1/auth/login \
+# Test Admin API login
+test-admin-login:
+	@curl -X POST http://localhost:8080/api/v1/admin/login \
 		-H "Content-Type: application/json" \
 		-d '{"email":"admin@teste.com","password":"admin123"}'
 	@echo ""
 
-# Create test tenant
+# Test Tenant API login
+test-tenant-login:
+	@curl -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}'
+	@echo ""
+
+# Create test tenant via Admin API
 test-tenant:
-	@echo "Creating test tenant..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+	@echo "Creating test tenant via Admin API..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
 		-H "Content-Type: application/json" \
 		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
 	PLAN_ID=$$(docker exec saas-postgres psql -U postgres -d master_db -t -c "SELECT id FROM plans LIMIT 1" | tr -d ' \n'); \
-	curl -X POST http://localhost:8080/api/v1/tenants \
+	curl -X POST http://localhost:8080/api/v1/admin/tenants \
 		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d "{\"name\":\"Empresa Teste\",\"url_code\":\"teste\",\"plan_id\":\"$$PLAN_ID\",\"company_name\":\"Empresa Teste Ltda\",\"industry\":\"Tecnologia\"}"
+	@echo ""
+	@echo "Check worker logs: wsl make logs-worker"
+
 		-H "Authorization: Bearer $$TOKEN" \
 		-d "{\"name\":\"Empresa Teste\",\"url_code\":\"teste\",\"plan_id\":\"$$PLAN_ID\",\"company_name\":\"Empresa Teste Ltda\",\"industry\":\"Tecnologia\"}"
 	@echo ""
