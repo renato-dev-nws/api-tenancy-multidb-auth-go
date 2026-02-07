@@ -158,6 +158,27 @@ test-plans-create:
 		-d '{"name":"Enterprise Plan","description":"Full access plan","price":99.99,"feature_ids":["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]}'
 	@echo ""
 
+# Test Admin API - Features CRUD
+test-features-list:
+	@echo "Listing all features..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET http://localhost:8080/api/v1/admin/features \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-features-create:
+	@echo "Creating new feature..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/admin/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@teste.com","password":"admin123"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8080/api/v1/admin/features \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"title":"Users","slug":"users","code":"user","description":"User management module","is_active":true}'
+	@echo ""
+
 # Clean everything
 clean:
 	@docker compose down -v

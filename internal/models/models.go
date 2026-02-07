@@ -76,7 +76,9 @@ type Feature struct {
 	ID          uuid.UUID `json:"id"`
 	Title       string    `json:"title"`
 	Slug        string    `json:"slug"`
+	Code        string    `json:"code"` // Código curto para permissões (prod, serv)
 	Description string    `json:"description,omitempty"`
+	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -217,4 +219,43 @@ type PlanResponse struct {
 type PlanListResponse struct {
 	Plans []PlanResponse `json:"plans"`
 	Total int            `json:"total"`
+}
+
+// ===== Admin API - Features Management =====
+
+// CreateFeatureRequest representa os dados para criar uma feature
+type CreateFeatureRequest struct {
+	Title       string `json:"title" binding:"required"`
+	Slug        string `json:"slug" binding:"required"`
+	Code        string `json:"code" binding:"required,min=2,max=10"` // Ex: prod, serv
+	Description string `json:"description"`
+	IsActive    bool   `json:"is_active"`
+}
+
+// UpdateFeatureRequest representa os dados para atualizar uma feature
+type UpdateFeatureRequest struct {
+	Title       string `json:"title" binding:"required"`
+	Slug        string `json:"slug" binding:"required"`
+	Code        string `json:"code" binding:"required,min=2,max=10"`
+	Description string `json:"description"`
+	IsActive    bool   `json:"is_active"`
+}
+
+// FeatureResponse retorna uma feature com planos associados
+type FeatureResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Slug        string    `json:"slug"`
+	Code        string    `json:"code"`
+	Description string    `json:"description,omitempty"`
+	IsActive    bool      `json:"is_active"`
+	PlanCount   int       `json:"plan_count"` // Quantos planos usam esta feature
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// FeatureListResponse retorna lista de features
+type FeatureListResponse struct {
+	Features []FeatureResponse `json:"features"`
+	Total    int               `json:"total"`
 }

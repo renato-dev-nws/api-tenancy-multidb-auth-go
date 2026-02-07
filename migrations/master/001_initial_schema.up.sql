@@ -83,7 +83,9 @@ CREATE TABLE features (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
+    code VARCHAR(10) UNIQUE NOT NULL, -- Código curto para permissões (ex: prod, serv)
     description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -240,9 +242,9 @@ INSERT INTO sys_user_roles (sys_user_id, sys_role_id)
 SELECT id, 1 FROM sys_users WHERE email = 'admin@teste.com';
 
 -- Default features (UUIDs fixos para facilitar)
-INSERT INTO features (id, title, slug, description) VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Products', 'products', 'Product management module'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Services', 'services', 'Service management module');
+INSERT INTO features (id, title, slug, code, description, is_active) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Products', 'products', 'prod', 'Product management module', true),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Services', 'services', 'serv', 'Service management module', true);
 
 -- Default plans (UUIDs fixos para facilitar)
 INSERT INTO plans (id, name, description, price) VALUES

@@ -57,6 +57,7 @@ func main() {
 	userRepo := repository.NewUserRepository(dbManager.GetMasterPool())
 	tenantRepo := repository.NewTenantRepository(dbManager.GetMasterPool())
 	planRepo := repository.NewPlanRepository(dbManager.GetMasterPool())
+	featureRepo := repository.NewFeatureRepository(dbManager.GetMasterPool())
 
 	// Initialize services
 	tenantService := services.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
@@ -65,9 +66,10 @@ func main() {
 	authHandler := handlers.NewAdminAuthHandler(sysUserRepo, cfg)
 	tenantHandler := handlers.NewTenantHandler(tenantService)
 	planHandler := handlers.NewPlanHandler(planRepo)
+	featureHandler := handlers.NewFeatureHandler(featureRepo)
 
 	// Setup router
-	router := setupAdminRouter(cfg, authHandler, tenantHandler, planHandler)
+	router := setupAdminRouter(cfg, authHandler, tenantHandler, planHandler, featureHandler)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -111,6 +113,7 @@ func setupAdminRouter(
 	authHandler *handlers.AdminAuthHandler,
 	tenantHandler *handlers.TenantHandler,
 	planHandler *handlers.PlanHandler,
+	featureHandler *handlers.FeatureHandler,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -145,6 +148,13 @@ func setupAdminRouter(
 		protected.POST("/plans", planHandler.CreatePlan)
 		protected.PUT("/plans/:id", planHandler.UpdatePlan)
 		protected.DELETE("/plans/:id", planHandler.DeletePlan)
+
+		// Feature Management
+		protected.GET("/features", featureHandler.GetAllFeatures)
+		protected.GET("/features/:id", featureHandler.GetFeatureByID)
+		protected.POST("/features", featureHandler.CreateFeature)
+		protected.PUT("/features/:id", featureHandler.UpdateFeature)
+		protected.DELETE("/features/:id", featureHandler.DeleteFeature)
 
 		// Feature Management (future)
 		// protected.POST("/features", featureHandler.CreateFeature)
