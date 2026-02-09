@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -123,7 +124,9 @@ func (m *Manager) GetTenantPool(ctx context.Context, dbCode string) (*pgxpool.Po
 	}
 
 	// Create new pool
-	dbName := fmt.Sprintf("db_tenant_%s", dbCode)
+	// Substituir hífens por underscores no db_code para nome válido de database (PostgreSQL identifier)
+	dbCodeClean := strings.ReplaceAll(dbCode, "-", "_")
+	dbName := fmt.Sprintf("db_tenant_%s", dbCodeClean)
 	connStr := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		m.cfg.MasterDB.User,

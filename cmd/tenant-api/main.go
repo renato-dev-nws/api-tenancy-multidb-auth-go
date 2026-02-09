@@ -58,9 +58,11 @@ func main() {
 
 	// Initialize handlers
 	authHandler := tenantHandlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
+	productHandler := tenantHandlers.NewProductHandler()
+	serviceHandler := tenantHandlers.NewServiceHandler()
 
 	// Setup router
-	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, tenantRepo, tenantService)
+	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, tenantRepo, tenantService)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -104,6 +106,8 @@ func setupTenantRouter(
 	dbManager *database.Manager,
 	redisClient *cache.Client,
 	authHandler *tenantHandlers.TenantAuthHandler,
+	productHandler *tenantHandlers.ProductHandler,
+	serviceHandler *tenantHandlers.ServiceHandler,
 	tenantRepo *adminRepo.TenantRepository,
 	tenantService *adminService.TenantService,
 ) *gin.Engine {
@@ -172,52 +176,22 @@ func setupTenantRouter(
 		products := tenant.Group("/products")
 		products.Use(middleware.RequireFeature("products"))
 		{
-			products.GET("", func(c *gin.Context) {
-				// Example handler - would query tenant database
-				c.JSON(http.StatusOK, gin.H{"message": "list products"})
-			})
-
-			products.POST("", middleware.RequirePermission("create_product"), func(c *gin.Context) {
-				// Example handler - would create product in tenant database
-				c.JSON(http.StatusOK, gin.H{"message": "create product"})
-			})
-
-			products.GET("/:id", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "get product"})
-			})
-
-			products.PUT("/:id", middleware.RequirePermission("update_product"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "update product"})
-			})
-
-			products.DELETE("/:id", middleware.RequirePermission("delete_product"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "delete product"})
-			})
+			products.GET("", productHandler.List)
+			products.POST("", middleware.RequirePermission("create_product"), productHandler.Create)
+			products.GET("/:id", productHandler.GetByID)
+			products.PUT("/:id", middleware.RequirePermission("update_product"), productHandler.Update)
+			products.DELETE("/:id", middleware.RequirePermission("delete_product"), productHandler.Delete)
 		}
 
 		// Services routes (requires 'services' feature)
 		services := tenant.Group("/services")
 		services.Use(middleware.RequireFeature("services"))
 		{
-			services.GET("", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "list services"})
-			})
-
-			services.POST("", middleware.RequirePermission("create_service"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "create service"})
-			})
-
-			services.GET("/:id", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "get service"})
-			})
-
-			services.PUT("/:id", middleware.RequirePermission("update_service"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "update service"})
-			})
-
-			services.DELETE("/:id", middleware.RequirePermission("delete_service"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "delete service"})
-			})
+			services.GET("", serviceHandler.List)
+			services.POST("", middleware.RequirePermission("create_service"), serviceHandler.Create)
+			services.GET("/:id", serviceHandler.GetByID)
+			services.PUT("/:id", middleware.RequirePermission("update_service"), serviceHandler.Update)
+			services.DELETE("/:id", middleware.RequirePermission("delete_service"), serviceHandler.Delete)
 		}
 
 		// Customers routes (always available)

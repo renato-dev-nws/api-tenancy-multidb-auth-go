@@ -27,17 +27,17 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 		}
 
 		// Get user ID from context (set by AuthMiddleware)
-		userIDStr, exists := c.Get("user_id")
+		userIDValue, exists := c.Get("user_id")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 			c.Abort()
 			return
 		}
 
-		userID, err := uuid.Parse(userIDStr.(string))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-			c.Abort()
+		// userID is already uuid.UUID from JWT claims
+		userID, ok := userIDValue.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 			return
 		}
 

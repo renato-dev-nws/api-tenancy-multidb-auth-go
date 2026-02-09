@@ -1,4 +1,4 @@
-.PHONY: help setup reset start stop restart logs logs-admin logs-tenant logs-worker migrate seed test-admin-login test-tenant-login test-tenant clean
+.PHONY: help setup reset start stop restart logs logs-admin logs-tenant logs-worker migrate seed test-admin-login test-tenant-login test-tenant clean test-product-create test-product-list test-product-get test-product-update test-product-delete test-products-all test-service-create test-service-list test-service-get test-service-update test-service-delete test-services-all
 
 # Default target
 help:
@@ -21,10 +21,16 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test-admin-login      - Test Admin API login"
-	@echo "  make test-tenant-login     - Test Tenant API login"
-	@echo "  make test-tenant           - Create test tenant via Admin API"
+	@echo "  make test-login            - Test Tenant API login (with interface)"
+	@echo "  make test-switch-tenant    - Test tenant switching"
 	@echo "  make test-subscription     - Test subscription (public signup)"
-	@echo "  make test-login-to-tenant  - Test login to tenant (features + permissions + config)"
+	@echo ""
+	@echo "Product CRUD (use: wsl make <command>):"
+	@echo "  make test-product-create   - Create a test product"
+	@echo "  make test-product-list     - List all products"
+	@echo "  make test-product-get      - Get product by ID (PRODUCT_ID=uuid)"
+	@echo "  make test-product-update   - Update product (PRODUCT_ID=uuid)"
+	@echo "  make test-product-delete   - Delete product (PRODUCT_ID=uuid)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean           - Clean volumes and rebuild"
@@ -227,3 +233,209 @@ clean:
 	@docker compose down -v
 	@docker system prune -f
 	@echo "All cleaned!"
+
+# Test Tenant API - Products CRUD
+test-product-create:
+	@echo "Creating new product..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8081/api/v1/95RM301XKTJ/products \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Notebook Dell","description":"Intel i7, 16GB RAM","price":3500.00,"sku":"NB-DELL-001","stock":10}'
+	@echo ""
+
+test-product-list:
+	@echo "Listing products..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/products?page=1&page_size=10" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-product-get:
+	@echo "Getting product by ID..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/products/$(PRODUCT_ID)" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-product-update:
+	@echo "Updating product..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/products/$(PRODUCT_ID)" \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Notebook Dell Atualizado","price":3200.00,"stock":15}'
+	@echo ""
+
+test-product-delete:
+	@echo "Deleting product (soft delete)..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/products/$(PRODUCT_ID)" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-products-all:
+	@echo "========================================="
+	@echo "Running complete Products CRUD test"
+	@echo "========================================="
+	@echo ""
+	@echo "1. Creating product..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/95RM301XKTJ/products \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Notebook Dell","description":"Intel i7, 16GB RAM","price":3500.00,"sku":"NB-DELL-001","stock":10}'); \
+	echo "$$RESPONSE"; \
+	PRODUCT_ID=$$(echo "$$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4); \
+	echo ""; \
+	if [ -n "$$PRODUCT_ID" ]; then \
+		echo "Product created with ID: $$PRODUCT_ID"; \
+		echo ""; \
+		echo "2. Listing products..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/products?page=1&page_size=10" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "3. Getting product by ID..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/products/$$PRODUCT_ID" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "4. Updating product..."; \
+		curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/products/$$PRODUCT_ID" \
+			-H "Content-Type: application/json" \
+			-H "Authorization: Bearer $$TOKEN" \
+			-d '{"name":"Notebook Dell XPS","price":4000.00,"stock":8}'; \
+		echo ""; \
+		echo ""; \
+		echo "5. Deleting product (soft delete)..."; \
+		curl -s -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/products/$$PRODUCT_ID" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "6. Listing products after delete..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/products?page=1&page_size=10&active=false" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+	else \
+		echo "ERROR: Failed to create product"; \
+	fi
+	@echo ""
+	@echo "========================================="
+	@echo "Test completed!"
+	@echo "========================================="
+
+# Test Tenant API - Services CRUD
+test-service-create:
+	@echo "Creating new service..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8081/api/v1/95RM301XKTJ/services \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Consultoria TI","description":"Consultoria em tecnologia","duration_minutes":60,"price":150.00}'
+	@echo ""
+
+test-service-list:
+	@echo "Listing services..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-service-get:
+	@echo "Getting service by ID..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-service-update:
+	@echo "Updating service..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Consultoria TI Avançada","price":200.00,"duration_minutes":90}'
+	@echo ""
+
+test-service-delete:
+	@echo "Deleting service (soft delete)..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-services-all:
+	@echo "========================================="
+	@echo "Running complete Services CRUD test"
+	@echo "========================================="
+	@echo ""
+	@echo "1. Creating service..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/95RM301XKTJ/services \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"name":"Consultoria TI","description":"Consultoria em tecnologia","duration_minutes":60,"price":150.00}'); \
+	echo "$$RESPONSE"; \
+	SERVICE_ID=$$(echo "$$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4); \
+	echo ""; \
+	if [ -n "$$SERVICE_ID" ]; then \
+		echo "Service created with ID: $$SERVICE_ID"; \
+		echo ""; \
+		echo "2. Listing services..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "3. Getting service by ID..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "4. Updating service..."; \
+		curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+			-H "Content-Type: application/json" \
+			-H "Authorization: Bearer $$TOKEN" \
+			-d '{"name":"Consultoria TI Avançada","price":200.00,"duration_minutes":90}'; \
+		echo ""; \
+		echo ""; \
+		echo "5. Deleting service (soft delete)..."; \
+		curl -s -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+		echo ""; \
+		echo "6. Listing services after delete..."; \
+		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10&active=false" \
+			-H "Authorization: Bearer $$TOKEN"; \
+		echo ""; \
+	else \
+		echo "ERROR: Failed to create service"; \
+	fi
+	@echo ""
+	@echo "========================================="
+	@echo "Test completed!"
+	@echo "========================================="
