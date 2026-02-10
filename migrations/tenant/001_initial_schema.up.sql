@@ -32,9 +32,12 @@ CREATE TABLE services (
 CREATE TABLE settings (
     key VARCHAR(100) PRIMARY KEY,
     value JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Insert default interface settings
+INSERT INTO settings (key, value) VALUES 
+('interface', '{"logo": null, "primary_color": "#003388", "secondary_color": "#DDDDDD"}');
 
 -- Create indexes
 CREATE INDEX idx_products_sku ON products(sku);

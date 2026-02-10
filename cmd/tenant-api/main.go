@@ -60,9 +60,10 @@ func main() {
 	authHandler := tenantHandlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
 	productHandler := tenantHandlers.NewProductHandler()
 	serviceHandler := tenantHandlers.NewServiceHandler()
+	settingHandler := tenantHandlers.NewSettingHandler()
 
 	// Setup router
-	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, tenantRepo, tenantService)
+	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, settingHandler, tenantRepo, tenantService)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -108,6 +109,7 @@ func setupTenantRouter(
 	authHandler *tenantHandlers.TenantAuthHandler,
 	productHandler *tenantHandlers.ProductHandler,
 	serviceHandler *tenantHandlers.ServiceHandler,
+	settingHandler *tenantHandlers.SettingHandler,
 	tenantRepo *adminRepo.TenantRepository,
 	tenantService *adminService.TenantService,
 ) *gin.Engine {
@@ -192,6 +194,14 @@ func setupTenantRouter(
 			services.GET("/:id", serviceHandler.GetByID)
 			services.PUT("/:id", middleware.RequirePermission("update_service"), serviceHandler.Update)
 			services.DELETE("/:id", middleware.RequirePermission("delete_service"), serviceHandler.Delete)
+		}
+
+		// Settings routes (always available for reading, manage_settings for editing)
+		settings := tenant.Group("/settings")
+		{
+			settings.GET("", settingHandler.List)
+			settings.GET("/:key", settingHandler.GetByKey)
+			settings.PUT("/:key", middleware.RequirePermission("manage_settings"), settingHandler.Update)
 		}
 
 		// Customers routes (always available)

@@ -233,6 +233,10 @@ func getTenantSchema() string {
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
+		-- Insert default interface settings
+		INSERT INTO settings (key, value) VALUES 
+		('interface', '{"logo": null, "primary_color": "#003388", "secondary_color": "#DDDDDD"}');
+
 		-- Indexes
 		CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
 		CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);

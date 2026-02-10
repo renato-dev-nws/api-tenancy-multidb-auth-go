@@ -1,4 +1,4 @@
-.PHONY: help setup reset start stop restart logs logs-admin logs-tenant logs-worker migrate seed test-admin-login test-tenant-login test-tenant clean test-product-create test-product-list test-product-get test-product-update test-product-delete test-products-all test-service-create test-service-list test-service-get test-service-update test-service-delete test-services-all
+.PHONY: help setup reset start stop restart logs logs-admin logs-tenant logs-worker migrate seed test-admin-login test-tenant-login test-tenant clean test-product-create test-product-list test-product-get test-product-update test-product-delete test-products-all test-service-create test-service-list test-service-get test-service-update test-service-delete test-services-all test-setting-list test-setting-get test-setting-update test-settings-all test-setting-list test-setting-get test-setting-update test-setting-upsert test-setting-delete test-settings-all
 
 # Default target
 help:
@@ -435,6 +435,70 @@ test-services-all:
 	else \
 		echo "ERROR: Failed to create service"; \
 	fi
+	@echo ""
+	@echo "========================================="
+	@echo "Test completed!"
+	@echo "========================================="
+
+# Settings CRUD Tests
+test-setting-list:
+	@echo "Listing all settings..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/settings" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-setting-get:
+	@echo "Getting interface setting..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/settings/interface" \
+		-H "Authorization: Bearer $$TOKEN"
+	@echo ""
+
+test-setting-update:
+	@echo "Updating interface setting..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/settings/interface" \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"value":{"logo":null,"primary_color":"#FF5733","secondary_color":"#333333"}}'
+	@echo ""
+
+test-settings-all:
+	@echo "========================================="
+	@echo "Running Settings operations test"
+	@echo "========================================="
+	@echo ""
+	@echo "1. Listing initial settings..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/settings" \
+		-H "Authorization: Bearer $$TOKEN"; \
+	echo ""; \
+	echo ""; \
+	echo "2. Getting interface setting..."; \
+	curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/settings/interface" \
+		-H "Authorization: Bearer $$TOKEN"; \
+	echo ""; \
+	echo ""; \
+	echo "3. Updating interface colors..."; \
+	curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/settings/interface" \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-d '{"value":{"logo":null,"primary_color":"#FF5733","secondary_color":"#333333"}}'; \
+	echo ""; \
+	echo ""; \
+	echo "4. Listing settings after update..."; \
+	curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/settings" \
+		-H "Authorization: Bearer $$TOKEN"; \
+	echo ""
 	@echo ""
 	@echo "========================================="
 	@echo "Test completed!"

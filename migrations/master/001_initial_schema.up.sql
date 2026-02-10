@@ -274,10 +274,10 @@ INSERT INTO permissions (name, slug, description) VALUES
     ('Delete Product', 'delete_product', 'Can delete products'),
     ('Create Service', 'create_service', 'Can create services'),
     ('Read Service', 'read_service', 'Can read services'),
-    ('Update Service', 'update_service', 'Can update services'),
+    ('Update Service', 'update_service', 'Can update service'),
     ('Delete Service', 'delete_service', 'Can delete services'),
     ('Manage Users', 'manage_users', 'Can manage tenant users'),
-    ('Manage Settings', 'manage_settings', 'Can manage tenant settings');
+    ('Manage Settings', 'manage_settings', 'Can view and update tenant settings (not create/delete)');
 
 -- Default global roles
 INSERT INTO roles (tenant_id, name, slug) VALUES
