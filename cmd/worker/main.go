@@ -242,5 +242,9 @@ func getTenantSchema() string {
 		CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 		CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
 		CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+		-- Grant permissions to saas_api user
+		GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO saas_api;
+		GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO saas_api;
 	`
 }
