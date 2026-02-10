@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/saas-multi-database-api/internal/cache"
 	"github.com/saas-multi-database-api/internal/config"
 	"github.com/saas-multi-database-api/internal/database"
@@ -19,7 +20,10 @@ import (
 	"github.com/saas-multi-database-api/internal/middleware"
 	adminModels "github.com/saas-multi-database-api/internal/models/admin"
 	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
+	tenantImageRepo "github.com/saas-multi-database-api/internal/repository/tenant"
 	adminService "github.com/saas-multi-database-api/internal/services/admin"
+	tenantImageService "github.com/saas-multi-database-api/internal/services/tenant"
+	"github.com/saas-multi-database-api/internal/storage"
 )
 
 // Tenant API - Data Plane
@@ -51,19 +55,28 @@ func main() {
 
 	// Initialize repositories
 	userRepo := adminRepo.NewUserRepository(dbManager.GetMasterPool())
-	tenantRepo := adminRepo.NewTenantRepository(dbManager.GetMasterPool())
+	tenantRepoMaster := adminRepo.NewTenantRepository(dbManager.GetMasterPool())
 
 	// Initialize services
-	tenantService := adminService.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+	tenantServiceAdmin := adminService.NewTenantService(tenantRepoMaster, userRepo, redisClient.Client, dbManager.GetMasterPool())
+
+	// Initialize storage driver
+	storageDriver, err := storage.NewStorageDriver(&storage.Config{
+		Driver:      cfg.Storage.Driver,
+		UploadsPath: cfg.Storage.UploadsPath,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize storage driver: %v", err)
+	}
 
 	// Initialize handlers
-	authHandler := tenantHandlers.NewTenantAuthHandler(userRepo, tenantRepo, tenantService, cfg)
+	authHandler := tenantHandlers.NewTenantAuthHandler(userRepo, tenantRepoMaster, tenantServiceAdmin, cfg)
 	productHandler := tenantHandlers.NewProductHandler()
 	serviceHandler := tenantHandlers.NewServiceHandler()
 	settingHandler := tenantHandlers.NewSettingHandler()
 
 	// Setup router
-	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, settingHandler, tenantRepo, tenantService)
+	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, settingHandler, tenantRepoMaster, tenantServiceAdmin, storageDriver)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -112,8 +125,12 @@ func setupTenantRouter(
 	settingHandler *tenantHandlers.SettingHandler,
 	tenantRepo *adminRepo.TenantRepository,
 	tenantService *adminService.TenantService,
+	storageDriver storage.StorageDriver,
 ) *gin.Engine {
 	router := gin.Default()
+
+	// Serve static files from uploads directory
+	router.Static("/uploads", cfg.Storage.UploadsPath)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -202,6 +219,52 @@ func setupTenantRouter(
 			settings.GET("", settingHandler.List)
 			settings.GET("/:key", settingHandler.GetByKey)
 			settings.PUT("/:key", middleware.RequirePermission("manage_settings"), settingHandler.Update)
+		}
+
+		// Images routes (polymorphic - works with products, services, etc.)
+		images := tenant.Group("/images")
+		{
+			// Handler will be initialized per request with tenant pool
+			images.POST("", middleware.RequirePermission("upload_images"), func(c *gin.Context) {
+				// Get tenant pool from context
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
+				imageHandler.UploadImages(c)
+			})
+
+			images.GET("", func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
+				imageHandler.ListImages(c)
+			})
+
+			images.GET("/:id", func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
+				imageHandler.GetImage(c)
+			})
+
+			images.PUT("/:id", middleware.RequirePermission("manage_images"), func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
+				imageHandler.UpdateImage(c)
+			})
+
+			images.DELETE("/:id", middleware.RequirePermission("delete_images"), func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
+				imageHandler.DeleteImage(c)
+			})
 		}
 
 		// Customers routes (always available)

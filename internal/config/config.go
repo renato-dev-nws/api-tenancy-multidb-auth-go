@@ -15,6 +15,7 @@ type Config struct {
 	Redis     RedisConfig
 	JWT       JWTConfig
 	App       AppConfig
+	Storage   StorageConfig
 }
 
 type ServerConfig struct {
@@ -50,6 +51,22 @@ type JWTConfig struct {
 
 type AppConfig struct {
 	Env string
+}
+
+type StorageConfig struct {
+	Driver      string
+	UploadsPath string
+	// AWS S3
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	AWSRegion          string
+	AWSBucket          string
+	// Cloudflare R2
+	R2AccessKeyID     string
+	R2SecretAccessKey string
+	R2AccountID       string
+	R2Bucket          string
+	R2PublicURL       string
 }
 
 func Load() *Config {
@@ -94,6 +111,19 @@ func Load() *Config {
 		},
 		App: AppConfig{
 			Env: getEnv("APP_ENV", "development"),
+		},
+		Storage: StorageConfig{
+			Driver:             getEnv("STORAGE_DRIVER", "local"),
+			UploadsPath:        getEnv("UPLOADS_PATH", "./uploads"),
+			AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+			AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+			AWSRegion:          getEnv("AWS_REGION", "us-east-1"),
+			AWSBucket:          getEnv("AWS_BUCKET", ""),
+			R2AccessKeyID:      getEnv("R2_ACCESS_KEY_ID", ""),
+			R2SecretAccessKey:  getEnv("R2_SECRET_ACCESS_KEY", ""),
+			R2AccountID:        getEnv("R2_ACCOUNT_ID", ""),
+			R2Bucket:           getEnv("R2_BUCKET", ""),
+			R2PublicURL:        getEnv("R2_PUBLIC_URL", ""),
 		},
 	}
 }

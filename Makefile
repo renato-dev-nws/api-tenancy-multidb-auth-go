@@ -9,6 +9,7 @@ include scripts/makefiles/tenant-tests.mk
 include scripts/makefiles/product-tests.mk
 include scripts/makefiles/service-tests.mk
 include scripts/makefiles/setting-tests.mk
+include scripts/makefiles/image-tests.mk
 
 # Infrastructure commands
 .PHONY: help setup reset start stop restart clean
@@ -75,6 +76,14 @@ help:
 	@echo "  make test-setting-get      - Get interface setting"
 	@echo "  make test-setting-update   - Update interface setting"
 	@echo "  make test-settings-all     - Run complete Settings test"
+	@echo ""
+	@echo "Image Tests:"
+	@echo "  make test-image-upload     - Upload test image (requires test-image.jpg)"
+	@echo "  make test-image-list       - List images for entity"
+	@echo "  make test-image-get        - Get image by ID (IMAGE_ID=uuid)"
+	@echo "  make test-image-update     - Update image metadata (IMAGE_ID=uuid)"
+	@echo "  make test-image-delete     - Delete image (IMAGE_ID=uuid)"
+	@echo "  make test-images-all       - Run complete Images workflow"
 	@echo ""
 	@echo "========================================="
 	@echo ""

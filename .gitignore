@@ -43,5 +43,9 @@ Thumbs.db
 *.log
 logs/
 
+# Uploads (keep directory structure but ignore files)
+uploads/*
+!uploads/.gitkeep
+
 # Old pkg structure (removed - using internal/ now)
 pkg/
