@@ -1,0 +1,33 @@
+# Dockerfile for Image Processing Worker
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the worker binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o image-worker ./cmd/image-worker
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+# Copy binary from builder
+COPY --from=builder /app/image-worker .
+
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
+# Expose the worker (no port needed for worker)
+CMD ["./image-worker"]

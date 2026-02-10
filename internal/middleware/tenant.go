@@ -140,6 +140,8 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 
 		// Step 8: Inject data into context
 		c.Set("tenant_id", tenant.ID.String())
+		c.Set("tenant_uuid", tenant.ID.String())
+		c.Set("tenant_db_code", dbCode)
 		c.Set("tenant_pool", tenantPool)
 		c.Set("features", features)
 		c.Set("permissions", permissions)

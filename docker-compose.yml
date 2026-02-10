@@ -167,6 +167,41 @@ services:
       - saas-network
     restart: unless-stopped
 
+  image-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.image-worker
+    container_name: saas-image-worker
+    environment:
+      MASTER_DB_HOST: pgbouncer
+      MASTER_DB_PORT: 5432
+      MASTER_DB_USER: saas_api
+      MASTER_DB_PASSWORD: saas_api_password
+      MASTER_DB_NAME: master_db
+      MASTER_DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: master_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      STORAGE_DRIVER: local
+      UPLOADS_PATH: ./uploads
+      APP_ENV: development
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - saas-network
+    restart: unless-stopped
+
 networks:
   saas-network:
     driver: bridge

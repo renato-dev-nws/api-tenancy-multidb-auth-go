@@ -2,32 +2,37 @@ package tenant
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/saas-multi-database-api/internal/cache"
 	tenantmodel "github.com/saas-multi-database-api/internal/models/tenant"
 	tenantrepo "github.com/saas-multi-database-api/internal/repository/tenant"
 	"github.com/saas-multi-database-api/internal/storage"
 )
 
 type UploadService struct {
-	imageRepo *tenantrepo.ImageRepository
-	storage   storage.StorageDriver
+	imageRepo   *tenantrepo.ImageRepository
+	storage     storage.StorageDriver
+	redisClient *cache.Client
 }
 
-func NewUploadService(imageRepo *tenantrepo.ImageRepository, storageDriver storage.StorageDriver) *UploadService {
+func NewUploadService(imageRepo *tenantrepo.ImageRepository, storageDriver storage.StorageDriver, redisClient *cache.Client) *UploadService {
 	return &UploadService{
-		imageRepo: imageRepo,
-		storage:   storageDriver,
+		imageRepo:   imageRepo,
+		storage:     storageDriver,
+		redisClient: redisClient,
 	}
 }
 
 // UploadOptions contains options for image upload
 type UploadOptions struct {
 	TenantUUID    string
+	TenantDBCode  string
 	ImageableType string
 	ImageableID   uuid.UUID
 	MaxFileSize   int64 // bytes
@@ -130,6 +135,15 @@ func (s *UploadService) UploadImage(ctx context.Context, file *multipart.FileHea
 		return nil, fmt.Errorf("failed to create image record: %w", err)
 	}
 
+	// Publish event to Redis for async processing (if Redis is available)
+	if s.redisClient != nil && opts.TenantDBCode != "" {
+		if err := s.publishProcessingEvent(ctx, opts.TenantDBCode, image.ID); err != nil {
+			// Log error but don't fail the upload
+			// Image can be processed manually later
+			fmt.Printf("Warning: failed to publish processing event: %v\n", err)
+		}
+	}
+
 	return image, nil
 }
 
@@ -215,4 +229,29 @@ func getMimeType(ext string) string {
 		return mime
 	}
 	return "application/octet-stream"
+}
+
+// publishProcessingEvent publishes an image processing event to Redis
+func (s *UploadService) publishProcessingEvent(ctx context.Context, tenantDBCode string, imageID uuid.UUID) error {
+	event := ProcessImageEvent{
+		TenantDBCode: tenantDBCode,
+		ImageID:      imageID,
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	if err := s.redisClient.Publish(ctx, "image:process", string(eventJSON)); err != nil {
+		return fmt.Errorf("failed to publish event: %w", err)
+	}
+
+	return nil
+}
+
+// ProcessImageEvent represents an image processing event
+type ProcessImageEvent struct {
+	TenantDBCode string    `json:"tenant_db_code"`
+	ImageID      uuid.UUID `json:"image_id"`
 }

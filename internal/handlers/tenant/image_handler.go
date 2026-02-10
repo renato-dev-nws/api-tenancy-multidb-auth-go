@@ -27,9 +27,16 @@ func NewImageHandler(imageRepo *tenantrepo.ImageRepository, uploadService *tenan
 // POST /api/v1/adm/:url_code/images
 func (h *ImageHandler) UploadImages(c *gin.Context) {
 	// Get tenant UUID from context (set by middleware)
-	tenantID, exists := c.Get("tenant_id")
+	tenantUUID, exists := c.Get("tenant_uuid")
 	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id not found in context"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_uuid not found in context"})
+		return
+	}
+
+	// Get tenant DB code from context
+	tenantDBCode, exists := c.Get("tenant_db_code")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_db_code not found in context"})
 		return
 	}
 
@@ -88,7 +95,8 @@ func (h *ImageHandler) UploadImages(c *gin.Context) {
 
 	// Setup upload options
 	opts := &tenantservice.UploadOptions{
-		TenantUUID:    tenantID.(string),
+		TenantUUID:    tenantUUID.(string),
+		TenantDBCode:  tenantDBCode.(string),
 		ImageableType: imageableType,
 		ImageableID:   imageableID,
 		MaxFileSize:   10 << 20, // 10 MB per file

@@ -10,6 +10,7 @@ include scripts/makefiles/product-tests.mk
 include scripts/makefiles/service-tests.mk
 include scripts/makefiles/setting-tests.mk
 include scripts/makefiles/image-tests.mk
+include scripts/makefiles/worker-tests.mk
 
 # Infrastructure commands
 .PHONY: help setup reset start stop restart clean
@@ -84,6 +85,11 @@ help:
 	@echo "  make test-image-update     - Update image metadata (IMAGE_ID=uuid)"
 	@echo "  make test-image-delete     - Delete image (IMAGE_ID=uuid)"
 	@echo "  make test-images-all       - Run complete Images workflow"
+	@echo ""
+	@echo "Image Worker:"
+	@echo "  make run-image-worker      - Start image processing worker"
+	@echo "  make stop-image-worker     - Stop image processing worker"
+	@echo "  make worker-logs           - View worker logs"
 	@echo ""
 	@echo "========================================="
 	@echo ""

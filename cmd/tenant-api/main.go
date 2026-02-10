@@ -229,7 +229,7 @@ func setupTenantRouter(
 				// Get tenant pool from context
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
-				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.UploadImages(c)
 			})
@@ -237,7 +237,7 @@ func setupTenantRouter(
 			images.GET("", func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
-				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.ListImages(c)
 			})
@@ -245,7 +245,7 @@ func setupTenantRouter(
 			images.GET("/:id", func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
-				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.GetImage(c)
 			})
@@ -253,7 +253,7 @@ func setupTenantRouter(
 			images.PUT("/:id", middleware.RequirePermission("manage_images"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
-				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.UpdateImage(c)
 			})
@@ -261,7 +261,7 @@ func setupTenantRouter(
 			images.DELETE("/:id", middleware.RequirePermission("delete_images"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
-				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver)
+				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.DeleteImage(c)
 			})
