@@ -145,6 +145,33 @@ Isso irá:
 make test-subscription
 ```
 
+## 🌐 CORS Configuration
+
+O sistema inclui middleware CORS configurado para desenvolvimento e produção:
+
+### Configuração de Desenvolvimento
+- **Origens**: `localhost:3000`, `localhost:5173`, `localhost:5174`, `localhost:8080`
+- **Métodos**: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`
+- **Headers**: `Origin`, `Content-Type`, `Accept`, `Authorization`, `X-Requested-With`
+- **Credenciais**: Habilitados (`credentials: 'include'`)
+
+### Teste Rápido de CORS
+```bash
+# 1. Suba os servidores
+go run ./cmd/admin-api    # Port 8080
+go run ./cmd/tenant-api   # Port 8081
+
+# 2. Abra o arquivo de teste
+open docs/cors-test.html  # No browser
+```
+
+### Configuração para Produção
+```env
+CORS_ORIGINS=https://app.yourdomain.com,https://admin.yourdomain.com
+```
+
+Ver [CORS_CONFIG.md](docs/CORS_CONFIG.md) para detalhes completos.
+
 ## ⚙️ Configuração
 
 ### Variáveis de Ambiente (Docker Compose)
