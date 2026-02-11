@@ -143,10 +143,12 @@ test-image-upload:
 		exit 1; \
 	fi
 	@echo "Uploading test image..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
-	curl -X POST http://localhost:8081/api/v1/95RM301XKTJ/images \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8081/api/v1/$$URL_CODE/images \
 		-H "Authorization: Bearer $$TOKEN" \
 		-F "imageable_type=product" \
 		-F "imageable_id=$(PRODUCT_ID)" \
@@ -161,10 +163,12 @@ test-image-list:
 		exit 1; \
 	fi
 	@echo "Listing images..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
-	curl -s "http://localhost:8081/api/v1/95RM301XKTJ/images?imageable_type=product&imageable_id=$(PRODUCT_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -s "http://localhost:8081/api/v1/$$URL_CODE/images?imageable_type=product&imageable_id=$(PRODUCT_ID)" \
 		-H "Authorization: Bearer $$TOKEN"
 
 # Get single image by ID
@@ -174,10 +178,12 @@ test-image-get:
 		exit 1; \
 	fi
 	@echo "Getting image..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
-	curl -s "http://localhost:8081/api/v1/95RM301XKTJ/images/$(IMAGE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -s "http://localhost:8081/api/v1/$$URL_CODE/images/$(IMAGE_ID)" \
 		-H "Authorization: Bearer $$TOKEN"
 
 # Update image metadata
@@ -187,10 +193,12 @@ test-image-update:
 		exit 1; \
 	fi
 	@echo "Updating image metadata..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
-	curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/images/$(IMAGE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X PUT "http://localhost:8081/api/v1/$$URL_CODE/images/$(IMAGE_ID)" \
 		-H "Authorization: Bearer $$TOKEN" \
 		-H "Content-Type: application/json" \
 		-d '{"title":"Updated Title","alt_text":"Updated description","display_order":1}'
@@ -202,9 +210,11 @@ test-image-delete:
 		exit 1; \
 	fi
 	@echo "Deleting image..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
-	curl -s -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/images/$(IMAGE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -s -X DELETE "http://localhost:8081/api/v1/$$URL_CODE/images/$(IMAGE_ID)" \
 		-H "Authorization: Bearer $$TOKEN"
 	@echo "✓ Image deleted successfully"

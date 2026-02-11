@@ -75,16 +75,18 @@ test-new-tenant:
 # Test existing testenovo tenant settings
 test-testenovo:
 	@echo "Testing existing testenovo tenant settings..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"teste@novo.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+		-d '{"email":"teste@novo.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
 	echo "Settings list:"; \
-	curl -s -X GET "http://localhost:8081/api/v1/DR9AKNEZV2P/settings" \
+	curl -s -X GET "http://localhost:8081/api/v1/$$URL_CODE/settings" \
 		-H "Authorization: Bearer $$TOKEN"; \
 	echo ""; \
 	echo ""; \
 	echo "Interface setting:"; \
-	curl -s -X GET "http://localhost:8081/api/v1/DR9AKNEZV2P/settings/interface" \
+	curl -s -X GET "http://localhost:8081/api/v1/$$URL_CODE/settings/interface" \
 		-H "Authorization: Bearer $$TOKEN"
 	@echo ""
 

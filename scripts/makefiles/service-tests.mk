@@ -5,10 +5,12 @@
 # Test Tenant API - Services CRUD
 test-service-create:
 	@echo "Creating new service..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X POST http://localhost:8081/api/v1/95RM301XKTJ/services \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X POST http://localhost:8081/api/v1/$$URL_CODE/services \
 		-H "Content-Type: application/json" \
 		-H "Authorization: Bearer $$TOKEN" \
 		-d '{"name":"Consultoria TI","description":"Consultoria em tecnologia","duration_minutes":60,"price":150.00}'
@@ -16,28 +18,34 @@ test-service-create:
 
 test-service-list:
 	@echo "Listing services..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/$$URL_CODE/services?page=1&page_size=10" \
 		-H "Authorization: Bearer $$TOKEN"
 	@echo ""
 
 test-service-get:
 	@echo "Getting service by ID..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X GET "http://localhost:8081/api/v1/$$URL_CODE/services/$(SERVICE_ID)" \
 		-H "Authorization: Bearer $$TOKEN"
 	@echo ""
 
 test-service-update:
 	@echo "Updating service..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X PUT "http://localhost:8081/api/v1/$$URL_CODE/services/$(SERVICE_ID)" \
 		-H "Content-Type: application/json" \
 		-H "Authorization: Bearer $$TOKEN" \
 		-d '{"name":"Consultoria TI Avançada","price":200.00,"duration_minutes":90}'
@@ -45,10 +53,12 @@ test-service-update:
 
 test-service-delete:
 	@echo "Deleting service (soft delete)..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	curl -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/services/$(SERVICE_ID)" \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	curl -X DELETE "http://localhost:8081/api/v1/$$URL_CODE/services/$(SERVICE_ID)" \
 		-H "Authorization: Bearer $$TOKEN"
 	@echo ""
 
@@ -58,10 +68,12 @@ test-services-all:
 	@echo "========================================="
 	@echo ""
 	@echo "1. Creating service..."
-	@TOKEN=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+	@LOGIN_RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"email":"joao@teste.com","password":"senha12345"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
-	RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/95RM301XKTJ/services \
+		-d '{"email":"joao@teste.com","password":"senha12345"}'); \
+	TOKEN=$$(echo "$$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4); \
+	URL_CODE=$$(echo "$$LOGIN_RESPONSE" | grep -o '"current_tenant"[^}]*"url_code":"[^"]*' | grep -o '"url_code":"[^"]*' | cut -d'"' -f4); \
+	RESPONSE=$$(curl -s -X POST http://localhost:8081/api/v1/$$URL_CODE/services \
 		-H "Content-Type: application/json" \
 		-H "Authorization: Bearer $$TOKEN" \
 		-d '{"name":"Consultoria TI","description":"Consultoria em tecnologia","duration_minutes":60,"price":150.00}'); \
@@ -72,29 +84,29 @@ test-services-all:
 		echo "Service created with ID: $$SERVICE_ID"; \
 		echo ""; \
 		echo "2. Listing services..."; \
-		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10" \
+		curl -s -X GET "http://localhost:8081/api/v1/$$URL_CODE/services?page=1&page_size=10" \
 			-H "Authorization: Bearer $$TOKEN"; \
 		echo ""; \
 		echo ""; \
 		echo "3. Getting service by ID..."; \
-		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+		curl -s -X GET "http://localhost:8081/api/v1/$$URL_CODE/services/$$SERVICE_ID" \
 			-H "Authorization: Bearer $$TOKEN"; \
 		echo ""; \
 		echo ""; \
 		echo "4. Updating service..."; \
-		curl -s -X PUT "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+		curl -s -X PUT "http://localhost:8081/api/v1/$$URL_CODE/services/$$SERVICE_ID" \
 			-H "Content-Type: application/json" \
 			-H "Authorization: Bearer $$TOKEN" \
 			-d '{"name":"Consultoria TI Avançada","price":200.00,"duration_minutes":90}'; \
 		echo ""; \
 		echo ""; \
 		echo "5. Deleting service (soft delete)..."; \
-		curl -s -X DELETE "http://localhost:8081/api/v1/95RM301XKTJ/services/$$SERVICE_ID" \
+		curl -s -X DELETE "http://localhost:8081/api/v1/$$URL_CODE/services/$$SERVICE_ID" \
 			-H "Authorization: Bearer $$TOKEN"; \
 		echo ""; \
 		echo ""; \
 		echo "6. Listing services after delete..."; \
-		curl -s -X GET "http://localhost:8081/api/v1/95RM301XKTJ/services?page=1&page_size=10&active=false" \
+		curl -s -X GET "http://localhost:8081/api/v1/$$URL_CODE/services?page=1&page_size=10&active=false" \
 			-H "Authorization: Bearer $$TOKEN"; \
 		echo ""; \
 	else \
