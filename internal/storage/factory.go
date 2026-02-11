@@ -16,14 +16,10 @@ func NewStorageDriver(cfg *Config) (StorageDriver, error) {
 		return NewLocalStorage(uploadsPath), nil
 
 	case "s3":
-		// TODO: Implement S3 storage
-		// return NewS3Storage(cfg), nil
-		return nil, fmt.Errorf("S3 storage not yet implemented")
+		return NewS3Storage(cfg)
 
 	case "r2":
-		// TODO: Implement R2 storage (Cloudflare R2 uses S3-compatible API)
-		// return NewR2Storage(cfg), nil
-		return nil, fmt.Errorf("R2 storage not yet implemented")
+		return NewR2Storage(cfg)
 
 	default:
 		return nil, fmt.Errorf("unsupported storage driver: %s", cfg.Driver)

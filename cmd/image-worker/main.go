@@ -45,8 +45,17 @@ func main() {
 
 	// Inicializar Storage Driver
 	storageDriver, err := storage.NewStorageDriver(&storage.Config{
-		Driver:      cfg.Storage.Driver,
-		UploadsPath: cfg.Storage.UploadsPath,
+		Driver:             cfg.Storage.Driver,
+		UploadsPath:        cfg.Storage.UploadsPath,
+		AWSAccessKeyID:     cfg.Storage.AWSAccessKeyID,
+		AWSSecretAccessKey: cfg.Storage.AWSSecretAccessKey,
+		AWSRegion:          cfg.Storage.AWSRegion,
+		AWSBucket:          cfg.Storage.AWSBucket,
+		R2AccessKeyID:      cfg.Storage.R2AccessKeyID,
+		R2SecretAccessKey:  cfg.Storage.R2SecretAccessKey,
+		R2AccountID:        cfg.Storage.R2AccountID,
+		R2Bucket:           cfg.Storage.R2Bucket,
+		R2PublicURL:        cfg.Storage.R2PublicURL,
 	})
 	if err != nil {
 		log.Fatalf("Erro ao inicializar storage driver: %v", err)

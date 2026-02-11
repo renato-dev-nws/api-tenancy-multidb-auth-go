@@ -463,7 +463,7 @@ type ImageProcessEvent struct {
 
 ---
 
-### 17. Configuração Multi-Storage ⏳
+### 17. Configuração Multi-Storage ✅
 
 **Variáveis `.env`**:
 ```env
