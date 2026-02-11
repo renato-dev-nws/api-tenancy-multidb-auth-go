@@ -165,6 +165,14 @@ func setupAdminRouter(
 		protected.PUT("/sys-users/:id", sysUserHandler.UpdateSysUser)
 		protected.DELETE("/sys-users/:id", sysUserHandler.DeleteSysUser)
 
+		// Profile Management (TODO: implement when needed)
+		// profiles := protected.Group("/profiles")
+		// {
+		// 	// System user avatar upload - note: this would need to be updated to use proper setup
+		// 	// For now, commenting out as it needs proper service initialization
+		// 	// profiles.POST("/sys-users/:sys_user_id/avatar", adminProfileHandler.UploadSysUserAvatar)
+		// }
+
 		// Feature Management (future)
 		// protected.POST("/features", featureHandler.CreateFeature)
 		// protected.GET("/features", featureHandler.ListFeatures)

@@ -19,6 +19,19 @@ CREATE TABLE sys_users (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- System users profiles
+CREATE TABLE sys_users_profiles (
+    sys_user_id UUID PRIMARY KEY REFERENCES sys_users(id) ON DELETE CASCADE,
+    full_name VARCHAR(255),
+    title VARCHAR(255), -- Job title/position
+    about TEXT,
+    bio TEXT,
+    social_links JSONB DEFAULT '{}', -- LinkedIn, Twitter, etc.
+    avatar_url TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- System roles table
 CREATE TABLE sys_roles (
     id SERIAL PRIMARY KEY,
@@ -73,6 +86,7 @@ CREATE TABLE users (
 CREATE TABLE user_profiles (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     full_name VARCHAR(255),
+    about TEXT,
     avatar_url TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -130,6 +144,7 @@ CREATE TABLE tenant_profiles (
     tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
     company_name VARCHAR(255),
     is_company BOOLEAN NOT NULL DEFAULT false,
+    about TEXT,
     custom_domain VARCHAR(255), -- Domain customizado do cliente (ex: app.empresa.com)
     logo_url TEXT,
     custom_settings JSONB DEFAULT '{}',

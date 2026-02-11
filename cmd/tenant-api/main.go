@@ -230,6 +230,28 @@ func setupTenantRouter(
 			settings.PUT("/:key", middleware.RequirePermission("setg_m"), settingHandler.Update)
 		}
 
+		// Profile routes (avatar and logo uploads)
+		profiles := tenant.Group("/profiles")
+		{
+			// User avatar upload
+			profiles.POST("/users/:user_id/avatar", func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				profileService := tenantImageService.NewProfileService(imageRepo, storageDriver)
+				profileHandler := tenantHandlers.NewProfileHandler(profileService)
+				profileHandler.UploadUserAvatar(c)
+			})
+
+			// Tenant logo upload
+			profiles.POST("/tenants/:tenant_id/logo", func(c *gin.Context) {
+				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
+				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
+				profileService := tenantImageService.NewProfileService(imageRepo, storageDriver)
+				profileHandler := tenantHandlers.NewProfileHandler(profileService)
+				profileHandler.UploadTenantLogo(c)
+			})
+		}
+
 		// Images routes (polymorphic - works with products, services, etc.)
 		// Permissions: Uses product/service permissions (update_product, update_service, delete_product, delete_service)
 		images := tenant.Group("/images")
