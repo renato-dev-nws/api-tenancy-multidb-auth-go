@@ -365,7 +365,7 @@ Response:
 GET /api/v1/:url_code/products
 Authorization: Bearer <token>
 
-# Criar produto (requer permissão 'create_product')
+# Criar produto (requer permissão 'prod_c')
 POST /api/v1/:url_code/products
 Authorization: Bearer <token>
 Content-Type: application/json
@@ -473,7 +473,7 @@ Context: tenant_id, tenant_pool, features[], permissions[]
 ```
 Feature Check → middleware.RequireFeature("products")
     ↓
-Permission Check → middleware.RequirePermission("create_product")
+Permission Check → middleware.RequirePermission("prod_c")
     ↓
 Handler executa com acesso ao tenant_pool
 ```
@@ -496,7 +496,7 @@ O sistema vem com dados de exemplo pré-configurados:
 - **bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb** - services
 
 ### Permissions
-- `create_product`, `read_product`, `update_product`, `delete_product`
+- `prod_c`, `prod_r`, `prod_u`, `prod_d`, `serv_c`, `serv_r`, `serv_u`, `serv_d`
 - `create_service`, `read_service`, `update_service`, `delete_service`
 - `manage_users`, `manage_settings`
 

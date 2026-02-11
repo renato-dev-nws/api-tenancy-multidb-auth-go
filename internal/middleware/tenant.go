@@ -129,6 +129,15 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 			return
 		}
 
+		// Step 6.5: Get user role for this tenant
+		userRole, err := tenantRepo.GetUserRole(ctx, userID, tenant.ID)
+		if err != nil {
+			log.Printf("Error getting user role: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user role"})
+			c.Abort()
+			return
+		}
+
 		// Step 7: Get or create tenant database pool
 		tenantPool, err := dbManager.GetTenantPool(ctx, dbCode)
 		if err != nil {
@@ -145,9 +154,10 @@ func TenantMiddleware(dbManager *database.Manager, redisClient *cache.Client, te
 		c.Set("tenant_pool", tenantPool)
 		c.Set("features", features)
 		c.Set("permissions", permissions)
+		c.Set("user_role", userRole)
 
-		log.Printf("Tenant resolved: %s (DB: %s) | User: %s | Features: %v | Permissions: %v",
-			urlCode, dbCode, userID, features, permissions)
+		log.Printf("Tenant resolved: %s (DB: %s) | User: %s | Role: %s | Features: %v | Permissions: %v",
+			urlCode, dbCode, userID, userRole, features, permissions)
 
 		c.Next()
 	}
@@ -183,8 +193,16 @@ func RequireFeature(featureSlug string) gin.HandlerFunc {
 }
 
 // RequirePermission middleware checks if user has a specific permission
+// Owners bypass permission checks automatically
 func RequirePermission(permissionSlug string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if user is Owner (bypass permission check)
+		userRole, exists := c.Get("user_role")
+		if exists && userRole.(string) == "owner" {
+			c.Next()
+			return
+		}
+
 		permissions, exists := c.Get("permissions")
 		if !exists {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "permissions not found in context"})
@@ -212,8 +230,16 @@ func RequirePermission(permissionSlug string) gin.HandlerFunc {
 }
 
 // RequireAnyPermission middleware checks if user has at least one of the specified permissions
+// Owners bypass permission checks automatically
 func RequireAnyPermission(permissionSlugs ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if user is Owner (bypass permission check)
+		userRole, exists := c.Get("user_role")
+		if exists && userRole.(string) == "owner" {
+			c.Next()
+			return
+		}
+
 		permissions, exists := c.Get("permissions")
 		if !exists {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "permissions not found in context"})

@@ -162,6 +162,24 @@ func (r *TenantRepository) GetUserPermissions(ctx context.Context, userID, tenan
 	return permissions, nil
 }
 
+// GetUserRole retrieves the role slug for a user in a specific tenant
+func (r *TenantRepository) GetUserRole(ctx context.Context, userID, tenantID uuid.UUID) (string, error) {
+	query := `
+		SELECT r.slug
+		FROM roles r
+		JOIN tenant_members tm ON tm.role_id = r.id
+		WHERE tm.user_id = $1 AND tm.tenant_id = $2
+	`
+
+	var roleSlug string
+	err := r.pool.QueryRow(ctx, query, userID, tenantID).Scan(&roleSlug)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user role: %w", err)
+	}
+
+	return roleSlug, nil
+}
+
 // GetUserTenants retrieves all tenants a user has access to
 func (r *TenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]admin.UserTenant, error) {
 	query := `

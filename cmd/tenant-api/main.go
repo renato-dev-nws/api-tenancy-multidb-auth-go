@@ -218,7 +218,7 @@ func setupTenantRouter(
 		{
 			settings.GET("", settingHandler.List)
 			settings.GET("/:key", settingHandler.GetByKey)
-			settings.PUT("/:key", middleware.RequirePermission("manage_settings"), settingHandler.Update)
+			settings.PUT("/:key", middleware.RequirePermission("setg_m"), settingHandler.Update)
 		}
 
 		// Images routes (polymorphic - works with products, services, etc.)
@@ -227,7 +227,7 @@ func setupTenantRouter(
 		{
 			// Handler will be initialized per request with tenant pool
 			// Upload requires update permission for product OR service
-			images.POST("", middleware.RequireAnyPermission("update_product", "update_service"), func(c *gin.Context) {
+			images.POST("", middleware.RequireAnyPermission("prod_u", "serv_u"), func(c *gin.Context) {
 				// Get tenant pool from context
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
@@ -253,7 +253,7 @@ func setupTenantRouter(
 			})
 
 			// Update metadata requires update permission for product OR service
-			images.PUT("/:id", middleware.RequireAnyPermission("update_product", "update_service"), func(c *gin.Context) {
+			images.PUT("/:id", middleware.RequireAnyPermission("prod_u", "serv_u"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
 				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
@@ -262,60 +262,12 @@ func setupTenantRouter(
 			})
 
 			// Delete requires delete permission for product OR service
-			images.DELETE("/:id", middleware.RequireAnyPermission("delete_product", "delete_service"), func(c *gin.Context) {
+			images.DELETE("/:id", middleware.RequireAnyPermission("prod_d", "serv_d"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
 				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
 				imageHandler := tenantHandlers.NewImageHandler(imageRepo, uploadService)
 				imageHandler.DeleteImage(c)
-			})
-		}
-
-		// Customers routes (always available)
-		customers := tenant.Group("/customers")
-		{
-			customers.GET("", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "list customers"})
-			})
-
-			customers.POST("", middleware.RequirePermission("create_customer"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "create customer"})
-			})
-
-			customers.GET("/:id", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "get customer"})
-			})
-
-			customers.PUT("/:id", middleware.RequirePermission("update_customer"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "update customer"})
-			})
-
-			customers.DELETE("/:id", middleware.RequirePermission("delete_customer"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "delete customer"})
-			})
-		}
-
-		// Orders routes (always available)
-		orders := tenant.Group("/orders")
-		{
-			orders.GET("", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "list orders"})
-			})
-
-			orders.POST("", middleware.RequirePermission("create_order"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "create order"})
-			})
-
-			orders.GET("/:id", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "get order"})
-			})
-
-			orders.PUT("/:id", middleware.RequirePermission("update_order"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "update order"})
-			})
-
-			orders.DELETE("/:id", middleware.RequirePermission("delete_order"), func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "delete order"})
 			})
 		}
 	}

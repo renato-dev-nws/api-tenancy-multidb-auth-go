@@ -197,7 +197,8 @@ INSERT INTO sys_roles (name, slug, description) VALUES
     ('Super Admin', 'super_admin', 'Full system access with all permissions'),
     ('Admin', 'admin', 'Administrative access to most features'),
     ('Support', 'support', 'Customer support access with limited permissions'),
-    ('Viewer', 'viewer', 'Read-only access to system data');
+    ('Viewer', 'viewer', 'Read-only access to system data')
+ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name;
 
 -- System permissions (for SaaS administrators)
 INSERT INTO sys_permissions (name, slug, description) VALUES
@@ -210,83 +211,125 @@ INSERT INTO sys_permissions (name, slug, description) VALUES
     ('View Analytics', 'view_analytics', 'Can view system analytics'),
     ('Manage Billing', 'manage_billing', 'Can manage billing and payments'),
     ('Access Support Tools', 'access_support_tools', 'Can access customer support tools'),
-    ('View Audit Logs', 'view_audit_logs', 'Can view system audit logs');
+    ('View Audit Logs', 'view_audit_logs', 'Can view system audit logs')
+ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name;
 
 -- Assign permissions to system roles
 -- Super Admin: all permissions
 INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
-SELECT 1, id FROM sys_permissions;
+SELECT r.id, p.id FROM sys_roles r, sys_permissions p
+WHERE r.slug = 'super_admin'
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_role_permissions srp 
+    WHERE srp.sys_role_id = r.id AND srp.sys_permission_id = p.id
+  );
 
 -- Admin: all except delete_tenant and manage_billing
 INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
-SELECT 2, id FROM sys_permissions
-WHERE slug NOT IN ('delete_tenant', 'manage_billing');
+SELECT r.id, p.id FROM sys_roles r, sys_permissions p
+WHERE r.slug = 'admin' AND p.slug NOT IN ('delete_tenant', 'manage_billing')
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_role_permissions srp 
+    WHERE srp.sys_role_id = r.id AND srp.sys_permission_id = p.id
+  );
 
 -- Support: view and support tools only
 INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
-SELECT 3, id FROM sys_permissions
-WHERE slug IN ('view_tenants', 'view_analytics', 'access_support_tools', 'view_audit_logs');
+SELECT r.id, p.id FROM sys_roles r, sys_permissions p
+WHERE r.slug = 'support' AND p.slug IN ('view_tenants', 'view_analytics', 'access_support_tools', 'view_audit_logs')
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_role_permissions srp 
+    WHERE srp.sys_role_id = r.id AND srp.sys_permission_id = p.id
+  );
 
 -- Viewer: read-only access
 INSERT INTO sys_role_permissions (sys_role_id, sys_permission_id)
-SELECT 4, id FROM sys_permissions
-WHERE slug IN ('view_tenants', 'view_analytics');
+SELECT r.id, p.id FROM sys_roles r, sys_permissions p
+WHERE r.slug = 'viewer' AND p.slug IN ('view_tenants', 'view_analytics')
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_role_permissions srp 
+    WHERE srp.sys_role_id = r.id AND srp.sys_permission_id = p.id
+  );
 
 -- Default SaaS administrator (initial super admin)
 -- Password: admin123 (bcrypt hash with cost 12)
 INSERT INTO sys_users (email, password_hash, full_name, status) VALUES
-    ('admin@teste.com', '$2a$12$6qRbnes1LBvu5vXM9UGYHuifduRsnykrK.E/T.o/B0E3.n8OAuOhy', 'System Administrator', 'active');
+    ('admin@teste.com', '$2a$12$6qRbnes1LBvu5vXM9UGYHuifduRsnykrK.E/T.o/B0E3.n8OAuOhy', 'System Administrator', 'active')
+ON CONFLICT (email) DO UPDATE SET 
+    password_hash = EXCLUDED.password_hash,
+    full_name = EXCLUDED.full_name;
 
 -- Assign super_admin role to the default admin
 INSERT INTO sys_user_roles (sys_user_id, sys_role_id)
-SELECT id, 1 FROM sys_users WHERE email = 'admin@teste.com';
+SELECT u.id, r.id FROM sys_users u, sys_roles r
+WHERE u.email = 'admin@teste.com' AND r.slug = 'super_admin'
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_user_roles sur 
+    WHERE sur.sys_user_id = u.id AND sur.sys_role_id = r.id
+  );
 
 -- Default features (UUIDs fixos para facilitar)
 INSERT INTO features (id, title, slug, code, description, is_active) VALUES
     ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Products', 'products', 'prod', 'Product management module', true),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Services', 'services', 'serv', 'Service management module', true);
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Services', 'services', 'serv', 'Service management module', true)
+ON CONFLICT (id) DO UPDATE SET 
+    title = EXCLUDED.title,
+    is_active = EXCLUDED.is_active;
 
 -- Default plans (UUIDs fixos para facilitar)
 INSERT INTO plans (id, name, description, price) VALUES
     ('11111111-1111-1111-1111-111111111111', 'Products Plan', 'Plan with product management only', 19.99),
     ('22222222-2222-2222-2222-222222222222', 'Services Plan', 'Plan with service management only', 19.99),
-    ('33333333-3333-3333-3333-333333333333', 'Premium Plan', 'Full plan with products and services', 39.99);
+    ('33333333-3333-3333-3333-333333333333', 'Premium Plan', 'Full plan with products and services', 39.99)
+ON CONFLICT (id) DO UPDATE SET 
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    price = EXCLUDED.price;
 
 -- Link features to plans (usando UUIDs fixos)
 -- Products Plan: only products
 INSERT INTO plan_features (plan_id, feature_id) VALUES
-    ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+ON CONFLICT (plan_id, feature_id) DO NOTHING;
 
 -- Services Plan: only services
 INSERT INTO plan_features (plan_id, feature_id) VALUES
-    ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
+ON CONFLICT (plan_id, feature_id) DO NOTHING;
 
 -- Premium Plan: all features
 INSERT INTO plan_features (plan_id, feature_id) VALUES
     ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-    ('33333333-3333-3333-3333-333333333333', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    ('33333333-3333-3333-3333-333333333333', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
+ON CONFLICT (plan_id, feature_id) DO NOTHING;
 
 -- Default permissions
 INSERT INTO permissions (name, slug, description) VALUES
-    ('Create Product', 'create_product', 'Can create products'),
-    ('Read Product', 'read_product', 'Can read products'),
-    ('Update Product', 'update_product', 'Can update products'),
-    ('Delete Product', 'delete_product', 'Can delete products'),
-    ('Create Service', 'create_service', 'Can create services'),
-    ('Read Service', 'read_service', 'Can read services'),
-    ('Update Service', 'update_service', 'Can update service'),
-    ('Delete Service', 'delete_service', 'Can delete services'),
-    ('Manage Users', 'manage_users', 'Can manage tenant users'),
-    ('Manage Settings', 'manage_settings', 'Can view and update tenant settings (not create/delete)');
+    ('Create Product', 'prod_c', 'Can create products'),
+    ('Read Product', 'prod_r', 'Can read products'),
+    ('Update Product', 'prod_u', 'Can update products'),
+    ('Delete Product', 'prod_d', 'Can delete products'),
+    ('Create Service', 'serv_c', 'Can create services'),
+    ('Read Service', 'serv_r', 'Can read services'),
+    ('Update Service', 'serv_u', 'Can update service'),
+    ('Delete Service', 'serv_d', 'Can delete services'),
+    ('Manage Users', 'user_m', 'Can manage tenant users'),
+    ('Manage Settings', 'setg_m', 'Can view and update tenant settings (not create/delete)')
+ON CONFLICT (slug) DO NOTHING;
 
 -- Default global roles
 INSERT INTO roles (tenant_id, name, slug) VALUES
     (NULL, 'Global Admin', 'global_admin'),
     (NULL, 'Owner', 'owner'),
     (NULL, 'Admin', 'admin'),
-    (NULL, 'Member', 'member');
+    (NULL, 'Member', 'member')
+ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name;
 
 -- Link all permissions to global admin role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.slug = 'global_admin';
+WHERE r.slug = 'global_admin'
+  AND NOT EXISTS (
+    SELECT 1 FROM role_permissions rp 
+    WHERE rp.role_id = r.id AND rp.permission_id = p.id
+  );
