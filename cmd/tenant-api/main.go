@@ -222,10 +222,12 @@ func setupTenantRouter(
 		}
 
 		// Images routes (polymorphic - works with products, services, etc.)
+		// Permissions: Uses product/service permissions (update_product, update_service, delete_product, delete_service)
 		images := tenant.Group("/images")
 		{
 			// Handler will be initialized per request with tenant pool
-			images.POST("", middleware.RequirePermission("upload_images"), func(c *gin.Context) {
+			// Upload requires update permission for product OR service
+			images.POST("", middleware.RequireAnyPermission("update_product", "update_service"), func(c *gin.Context) {
 				// Get tenant pool from context
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
@@ -250,7 +252,8 @@ func setupTenantRouter(
 				imageHandler.GetImage(c)
 			})
 
-			images.PUT("/:id", middleware.RequirePermission("manage_images"), func(c *gin.Context) {
+			// Update metadata requires update permission for product OR service
+			images.PUT("/:id", middleware.RequireAnyPermission("update_product", "update_service"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
 				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)
@@ -258,7 +261,8 @@ func setupTenantRouter(
 				imageHandler.UpdateImage(c)
 			})
 
-			images.DELETE("/:id", middleware.RequirePermission("delete_images"), func(c *gin.Context) {
+			// Delete requires delete permission for product OR service
+			images.DELETE("/:id", middleware.RequireAnyPermission("delete_product", "delete_service"), func(c *gin.Context) {
 				tenantPool := c.MustGet("tenant_pool").(*pgxpool.Pool)
 				imageRepo := tenantImageRepo.NewImageRepository(tenantPool)
 				uploadService := tenantImageService.NewUploadService(imageRepo, storageDriver, redisClient)

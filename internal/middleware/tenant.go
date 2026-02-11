@@ -210,3 +210,39 @@ func RequirePermission(permissionSlug string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequireAnyPermission middleware checks if user has at least one of the specified permissions
+func RequireAnyPermission(permissionSlugs ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		permissions, exists := c.Get("permissions")
+		if !exists {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "permissions not found in context"})
+			c.Abort()
+			return
+		}
+
+		permissionList := permissions.([]string)
+		hasPermission := false
+		for _, requiredPerm := range permissionSlugs {
+			for _, userPerm := range permissionList {
+				if userPerm == requiredPerm {
+					hasPermission = true
+					break
+				}
+			}
+			if hasPermission {
+				break
+			}
+		}
+
+		if !hasPermission {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": fmt.Sprintf("at least one of these permissions required: %v", permissionSlugs),
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

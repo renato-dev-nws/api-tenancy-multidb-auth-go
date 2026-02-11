@@ -230,15 +230,32 @@ func (r *ImageRepository) Update(ctx context.Context, id uuid.UUID, req *tenant.
 
 // UpdateStatus updates the processing status of an image
 func (r *ImageRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status tenant.ProcessingStatus) error {
-	query := `
-		UPDATE images
-		SET processing_status = $2,
-			processed_at = CASE WHEN $2 IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE processed_at END,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`
+	statusStr := string(status)
 
-	_, err := r.pool.Exec(ctx, query, id, status)
+	var query string
+	var args []interface{}
+
+	// Update processed_at only for final statuses
+	if statusStr == "completed" || statusStr == "failed" {
+		query = `
+			UPDATE images
+			SET processing_status = $2,
+				processed_at = CURRENT_TIMESTAMP,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		args = []interface{}{id, statusStr}
+	} else {
+		query = `
+			UPDATE images
+			SET processing_status = $2,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		args = []interface{}{id, statusStr}
+	}
+
+	_, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update image status: %w", err)
 	}
