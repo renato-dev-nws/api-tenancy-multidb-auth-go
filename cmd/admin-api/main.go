@@ -62,11 +62,12 @@ func main() {
 
 	// Initialize services
 	tenantService := adminService.NewTenantService(tenantRepo, userRepo, redisClient.Client, dbManager.GetMasterPool())
+	planService := adminService.NewPlanService(planRepo, redisClient.Client)
 
 	// Initialize handlers (Admin API uses SysUserRepository)
 	authHandler := adminHandlers.NewAdminAuthHandler(sysUserRepo, cfg)
 	tenantHandler := adminHandlers.NewTenantHandler(tenantService)
-	planHandler := adminHandlers.NewPlanHandler(planRepo)
+	planHandler := adminHandlers.NewPlanHandler(planService)
 	featureHandler := adminHandlers.NewFeatureHandler(featureRepo)
 	sysUserHandler := adminHandlers.NewSysUserHandler(sysUserRepo)
 

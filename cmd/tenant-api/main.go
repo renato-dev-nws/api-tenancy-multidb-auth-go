@@ -57,9 +57,11 @@ func main() {
 	// Initialize repositories
 	userRepo := adminRepo.NewUserRepository(dbManager.GetMasterPool())
 	tenantRepoMaster := adminRepo.NewTenantRepository(dbManager.GetMasterPool())
+	planRepo := adminRepo.NewPlanRepository(dbManager.GetMasterPool())
 
 	// Initialize services
 	tenantServiceAdmin := adminService.NewTenantService(tenantRepoMaster, userRepo, redisClient.Client, dbManager.GetMasterPool())
+	planService := adminService.NewPlanService(planRepo, redisClient.Client)
 
 	// Initialize storage driver
 	storageDriver, err := storage.NewStorageDriver(&storage.Config{
@@ -86,7 +88,7 @@ func main() {
 	settingHandler := tenantHandlers.NewSettingHandler()
 
 	// Setup router
-	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, settingHandler, tenantRepoMaster, tenantServiceAdmin, storageDriver)
+	router := setupTenantRouter(cfg, dbManager, redisClient, authHandler, productHandler, serviceHandler, settingHandler, tenantRepoMaster, tenantServiceAdmin, storageDriver, planService)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -136,6 +138,7 @@ func setupTenantRouter(
 	tenantRepo *adminRepo.TenantRepository,
 	tenantService *adminService.TenantService,
 	storageDriver storage.StorageDriver,
+	planService *adminService.PlanService,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -163,6 +166,20 @@ func setupTenantRouter(
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
 		public.POST("/subscription", authHandler.Subscribe) // Nova rota de assinatura
+
+		// Public endpoint to list plans (for registration) - with Redis cache
+		public.GET("/plans", func(c *gin.Context) {
+			planResponses, err := planService.GetAllPlansWithCache(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plans", "details": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, adminModels.PlanListResponse{
+				Plans: planResponses,
+				Total: len(planResponses),
+			})
+		})
 	}
 
 	// Protected tenant user routes (requires tenant JWT)

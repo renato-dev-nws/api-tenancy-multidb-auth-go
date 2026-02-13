@@ -6,46 +6,26 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	adminModels "github.com/saas-multi-database-api/internal/models/admin"
-	adminRepo "github.com/saas-multi-database-api/internal/repository/admin"
+	adminService "github.com/saas-multi-database-api/internal/services/admin"
 )
 
 type PlanHandler struct {
-	planRepo *adminRepo.PlanRepository
+	planService *adminService.PlanService
 }
 
-func NewPlanHandler(planRepo *adminRepo.PlanRepository) *PlanHandler {
+func NewPlanHandler(planService *adminService.PlanService) *PlanHandler {
 	return &PlanHandler{
-		planRepo: planRepo,
+		planService: planService,
 	}
 }
 
-// GetAllPlans lista todos os planos
+// GetAllPlans lista todos os planos (com cache Redis)
 // GET /api/v1/admin/plans
 func (h *PlanHandler) GetAllPlans(c *gin.Context) {
-	plans, err := h.planRepo.GetAllPlans(c.Request.Context())
+	planResponses, err := h.planService.GetAllPlansWithCache(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plans", "details": err.Error()})
 		return
-	}
-
-	// Para cada plano, buscar suas features
-	var planResponses []adminModels.PlanResponse
-	for _, plan := range plans {
-		features, err := h.planRepo.GetPlanFeatures(c.Request.Context(), plan.ID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plan features"})
-			return
-		}
-
-		planResponses = append(planResponses, adminModels.PlanResponse{
-			ID:          plan.ID,
-			Name:        plan.Name,
-			Description: plan.Description,
-			Price:       plan.Price,
-			Features:    features,
-			CreatedAt:   plan.CreatedAt,
-			UpdatedAt:   plan.UpdatedAt,
-		})
 	}
 
 	c.JSON(http.StatusOK, adminModels.PlanListResponse{
@@ -54,7 +34,7 @@ func (h *PlanHandler) GetAllPlans(c *gin.Context) {
 	})
 }
 
-// GetPlanByID retorna um plano específico
+// GetPlanByID retorna um plano específico (com cache Redis)
 // GET /api/v1/admin/plans/:id
 func (h *PlanHandler) GetPlanByID(c *gin.Context) {
 	planIDStr := c.Param("id")
@@ -64,26 +44,20 @@ func (h *PlanHandler) GetPlanByID(c *gin.Context) {
 		return
 	}
 
-	plan, err := h.planRepo.GetPlanByID(c.Request.Context(), planID)
+	planResponse, err := h.planService.GetPlanByIDWithCache(c.Request.Context(), planID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "plan not found"})
 		return
 	}
 
-	features, err := h.planRepo.GetPlanFeatures(c.Request.Context(), planID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plan features"})
-		return
-	}
-
 	c.JSON(http.StatusOK, adminModels.PlanResponse{
-		ID:          plan.ID,
-		Name:        plan.Name,
-		Description: plan.Description,
-		Price:       plan.Price,
-		Features:    features,
-		CreatedAt:   plan.CreatedAt,
-		UpdatedAt:   plan.UpdatedAt,
+		ID:          planResponse.ID,
+		Name:        planResponse.Name,
+		Description: planResponse.Description,
+		Price:       planResponse.Price,
+		Features:    planResponse.Features,
+		CreatedAt:   planResponse.CreatedAt,
+		UpdatedAt:   planResponse.UpdatedAt,
 	})
 }
 
@@ -96,8 +70,8 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 		return
 	}
 
-	// Criar plano
-	plan, err := h.planRepo.CreatePlan(c.Request.Context(), req.Name, req.Description, req.Price)
+	// Criar plano (com invalidação de cache)
+	plan, err := h.planService.CreatePlan(c.Request.Context(), req.Name, req.Description, req.Price)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create plan", "details": err.Error()})
 		return
@@ -114,28 +88,27 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 			}
 			featureUUIDs = append(featureUUIDs, featureID)
 		}
-
-		if err := h.planRepo.SetPlanFeatures(c.Request.Context(), plan.ID, featureUUIDs); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set plan features"})
+		if err := h.planService.AddFeaturesToPlan(c.Request.Context(), plan.ID, featureUUIDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add features to plan"})
 			return
 		}
 	}
 
-	// Buscar features para retorno
-	features, err := h.planRepo.GetPlanFeatures(c.Request.Context(), plan.ID)
+	// Buscar plano atualizado do cache
+	planResponse, err := h.planService.GetPlanByIDWithCache(c.Request.Context(), plan.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plan features"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get created plan"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, adminModels.PlanResponse{
-		ID:          plan.ID,
-		Name:        plan.Name,
-		Description: plan.Description,
-		Price:       plan.Price,
-		Features:    features,
-		CreatedAt:   plan.CreatedAt,
-		UpdatedAt:   plan.UpdatedAt,
+		ID:          planResponse.ID,
+		Name:        planResponse.Name,
+		Description: planResponse.Description,
+		Price:       planResponse.Price,
+		Features:    planResponse.Features,
+		CreatedAt:   planResponse.CreatedAt,
+		UpdatedAt:   planResponse.UpdatedAt,
 	})
 }
 
@@ -155,14 +128,14 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	// Atualizar plano
-	plan, err := h.planRepo.UpdatePlan(c.Request.Context(), planID, req.Name, req.Description, req.Price)
+	// Atualizar plano (com invalidação de cache)
+	_, err = h.planService.UpdatePlan(c.Request.Context(), planID, req.Name, req.Description, req.Price)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update plan", "details": err.Error()})
 		return
 	}
 
-	// Atualizar features
+	// Atualizar features (remove todas e adiciona novas)
 	var featureUUIDs []uuid.UUID
 	for _, idStr := range req.FeatureIDs {
 		featureID, err := uuid.Parse(idStr)
@@ -172,27 +145,26 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		}
 		featureUUIDs = append(featureUUIDs, featureID)
 	}
-
-	if err := h.planRepo.SetPlanFeatures(c.Request.Context(), planID, featureUUIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set plan features"})
+	if err := h.planService.AddFeaturesToPlan(c.Request.Context(), planID, featureUUIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update plan features"})
 		return
 	}
 
-	// Buscar features para retorno
-	features, err := h.planRepo.GetPlanFeatures(c.Request.Context(), planID)
+	// Buscar plano atualizado do cache
+	planResponse, err := h.planService.GetPlanByIDWithCache(c.Request.Context(), planID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plan features"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get updated plan"})
 		return
 	}
 
 	c.JSON(http.StatusOK, adminModels.PlanResponse{
-		ID:          plan.ID,
-		Name:        plan.Name,
-		Description: plan.Description,
-		Price:       plan.Price,
-		Features:    features,
-		CreatedAt:   plan.CreatedAt,
-		UpdatedAt:   plan.UpdatedAt,
+		ID:          planResponse.ID,
+		Name:        planResponse.Name,
+		Description: planResponse.Description,
+		Price:       planResponse.Price,
+		Features:    planResponse.Features,
+		CreatedAt:   planResponse.CreatedAt,
+		UpdatedAt:   planResponse.UpdatedAt,
 	})
 }
 
@@ -206,7 +178,7 @@ func (h *PlanHandler) DeletePlan(c *gin.Context) {
 		return
 	}
 
-	if err := h.planRepo.DeletePlan(c.Request.Context(), planID); err != nil {
+	if err := h.planService.DeletePlan(c.Request.Context(), planID); err != nil {
 		// Verifica se é erro de plano em uso
 		if err.Error() == "cannot delete plan: tenants are using this plan" {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
