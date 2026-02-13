@@ -189,8 +189,7 @@ func setupTenantRouter(
 		protected.GET("/auth/me", authHandler.GetMe)
 		protected.POST("/auth/switch-tenant", authHandler.SwitchTenant) // Nova rota de troca de tenant
 		protected.GET("/tenants", func(c *gin.Context) {
-			userIDStr, _ := c.Get("user_id")
-			userID, _ := uuid.Parse(userIDStr.(string))
+			userID := c.MustGet("user_id").(uuid.UUID)
 			tenants, _ := tenantService.ListUserTenants(c.Request.Context(), userID)
 			c.JSON(http.StatusOK, tenants)
 		})

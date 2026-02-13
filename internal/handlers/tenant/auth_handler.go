@@ -226,8 +226,7 @@ func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userID := c.MustGet("user_id").(string)
-	parsedUserID := mustParseUUID(userID)
+	userID := c.MustGet("user_id").(uuid.UUID)
 
 	// Get tenant by url_code
 	tenant, err := h.tenantRepo.GetTenantByURLCode(c.Request.Context(), req.URLCode)
@@ -243,7 +242,7 @@ func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
 	}
 
 	// Verify user has access to this tenant
-	hasAccess, err := h.tenantRepo.CheckUserAccess(c.Request.Context(), parsedUserID, tenant.ID)
+	hasAccess, err := h.tenantRepo.CheckUserAccess(c.Request.Context(), userID, tenant.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify access"})
 		return
@@ -255,7 +254,7 @@ func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
 	}
 
 	// Update last_tenant_logged
-	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), parsedUserID, req.URLCode); err != nil {
+	if err := h.userRepo.UpdateLastTenantLogged(c.Request.Context(), userID, req.URLCode); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update last tenant logged"})
 		return
 	}
@@ -267,7 +266,7 @@ func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
 	}
 
 	// Get user permissions for this tenant
-	permissions, err := h.tenantRepo.GetUserPermissions(c.Request.Context(), parsedUserID, tenant.ID)
+	permissions, err := h.tenantRepo.GetUserPermissions(c.Request.Context(), userID, tenant.ID)
 	if err != nil {
 		permissions = []string{}
 	}
@@ -308,9 +307,9 @@ func (h *TenantAuthHandler) SwitchTenant(c *gin.Context) {
 
 // GetMe returns the authenticated tenant user's information
 func (h *TenantAuthHandler) GetMe(c *gin.Context) {
-	userID := c.MustGet("user_id").(string)
+	userID := c.MustGet("user_id").(uuid.UUID)
 
-	user, err := h.userRepo.GetUserByID(c.Request.Context(), mustParseUUID(userID))
+	user, err := h.userRepo.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
